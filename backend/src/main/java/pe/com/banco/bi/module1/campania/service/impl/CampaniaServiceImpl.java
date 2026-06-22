@@ -4,13 +4,16 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.com.banco.bi.module1.campania.dto.CampaniaResumenResponse;
 import pe.com.banco.bi.module1.campania.dto.CampaniaResponse;
 import pe.com.banco.bi.module1.campania.entity.Campania;
 import pe.com.banco.bi.module1.campania.mapper.CampaniaMapper;
 import pe.com.banco.bi.module1.campania.repository.CampaniaRepository;
 import pe.com.banco.bi.module1.campania.service.CampaniaService;
+import pe.com.banco.bi.module1.oferta.dto.OfertaResumenResponse;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResponse;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
 import pe.com.banco.bi.module1.oferta.mapper.OfertaMapper;
@@ -33,7 +36,26 @@ public class CampaniaServiceImpl implements CampaniaService {
     @Override
     @Transactional(readOnly = true)
     public Page<CampaniaResponse> listarCampanias(String codigo, String nombre, Long productoId, Long periodoId, String estado, Pageable pageable) {
-        return campaniaRepository.findAll((root, query, cb) -> {
+        return campaniaRepository.findAll(buildSpecification(codigo, nombre, productoId, periodoId, estado), pageable)
+                .map(campaniaMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CampaniaResumenResponse resumenCampanias(String codigo, String nombre, Long productoId, Long periodoId, String estado) {
+        Specification<Campania> spec = buildSpecification(codigo, nombre, productoId, periodoId, estado);
+        long total = campaniaRepository.count(spec);
+        long activas = campaniaRepository.count(spec
+                .and((root, query, cb) -> cb.equal(root.get("estado"), "ACTIVA")));
+
+        return CampaniaResumenResponse.builder()
+                .total(total)
+                .activas(activas)
+                .build();
+    }
+
+    private Specification<Campania> buildSpecification(String codigo, String nombre, Long productoId, Long periodoId, String estado) {
+        return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             if (codigo != null && !codigo.isBlank()) {
@@ -53,7 +75,7 @@ public class CampaniaServiceImpl implements CampaniaService {
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
-        }, pageable).map(campaniaMapper::toResponse);
+        };
     }
 
     @Override
@@ -90,18 +112,40 @@ public class CampaniaServiceImpl implements CampaniaService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OfertaResponse> listarOfertasPorCampania(Long campaniaId, Pageable pageable) {
+    public Page<OfertaResponse> listarOfertasPorCampania(Long campaniaId, String search, Pageable pageable) {
         if (!campaniaRepository.existsById(campaniaId)) {
             throw new RuntimeException("Campaña no encontrada");
         }
-        List<Oferta> ofertas = ofertaRepository.findByCampaniaId(campaniaId);
-        // Convertir lista paginada manualmente
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), ofertas.size());
-        List<OfertaResponse> content = ofertas.subList(start, end).stream()
-                .map(ofertaMapper::toResponse)
-                .toList();
-        return new org.springframework.data.domain.PageImpl<>(content, pageable, ofertas.size());
+        Page<Oferta> ofertas;
+        if (search != null && !search.isBlank()) {
+            ofertas = ofertaRepository.findByCampaniaIdAndSearch(campaniaId, search, pageable);
+        } else {
+            ofertas = ofertaRepository.findByCampaniaId(campaniaId, pageable);
+        }
+        return ofertas.map(ofertaMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OfertaResumenResponse resumenOfertasPorCampania(Long campaniaId, String search) {
+        if (!campaniaRepository.existsById(campaniaId)) {
+            throw new RuntimeException("Campaña no encontrada");
+        }
+        Object[] resultado = ofertaRepository.calcularResumenOfertas(campaniaId, search);
+        long totalOfertas = ((Number) resultado[0]).longValue();
+        long clientesAlcanzados = ((Number) resultado[1]).longValue();
+        BigDecimal montoTotalOfertado = (BigDecimal) resultado[2];
+
+        BigDecimal ticketPromedio = totalOfertas == 0
+                ? BigDecimal.ZERO
+                : montoTotalOfertado.divide(BigDecimal.valueOf(totalOfertas), 2, RoundingMode.HALF_UP);
+
+        return OfertaResumenResponse.builder()
+                .totalOfertas(totalOfertas)
+                .clientesAlcanzados(clientesAlcanzados)
+                .montoTotalOfertado(montoTotalOfertado)
+                .ticketPromedio(ticketPromedio)
+                .build();
     }
 
     private boolean debeRecalcular(Campania campania) {
@@ -111,7 +155,7 @@ public class CampaniaServiceImpl implements CampaniaService {
     }
 
     private void recalcular(Campania campania) {
-        List<Oferta> ofertas = ofertaRepository.findByCampaniaId(campania.getId());
+        List<Oferta> ofertas = ofertaRepository.findAllByCampaniaId(campania.getId());
 
         int clientesAlcanzados = (int) ofertas.stream()
                 .map(oferta -> oferta.getCliente().getId())

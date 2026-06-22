@@ -5,7 +5,9 @@ import lombok.*;
 import pe.com.banco.bi.module2.procesocarga.entity.ProcesoCarga;
 
 @Entity
-@Table(name = "archivos_carga")
+@Table(name = "archivos_carga", indexes = {
+        @Index(name = "idx_archivo_carga_proceso_carga_id", columnList = "proceso_carga_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -18,6 +18,9 @@ import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResponse;
 import pe.com.banco.bi.module2.procesocarga.service.ProcesoCargaService;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/cargas")
@@ -30,12 +33,24 @@ public class ProcesoCargaController {
     @PreAuthorize("hasAuthority('CARGAS_VER')")
     public ResponseEntity<Page<ProcesoCargaResponse>> listar(
             @RequestParam(required = false) Long tipoCargaId,
-            @RequestParam(required = false) Long estadoCargaId,
-            @RequestParam(required = false) String codigo,
+            @RequestParam(required = false) String estados,
+            @RequestParam(required = false) Long usuarioId,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fechaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fechaHasta,
             Pageable pageable) {
-        return ResponseEntity.ok(procesoCargaService.listarCargas(tipoCargaId, estadoCargaId, codigo, fechaDesde, fechaHasta, pageable));
+        List<String> estadosList = parseEstados(estados);
+        return ResponseEntity.ok(procesoCargaService.listarCargas(tipoCargaId, estadosList, usuarioId, search, fechaDesde, fechaHasta, pageable));
+    }
+
+    private List<String> parseEstados(String estados) {
+        if (estados == null || estados.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(estados.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     @PostMapping(consumes = {"multipart/form-data"})

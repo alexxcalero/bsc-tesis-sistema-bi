@@ -11,7 +11,9 @@ import pe.com.banco.bi.securitydomain.usuario.entity.Usuario;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "procesos_carga")
+@Table(name = "procesos_carga", indexes = {
+        @Index(name = "idx_proceso_carga_codigo", columnList = "codigo")
+})
 @Getter
 @Setter
 @NoArgsConstructor

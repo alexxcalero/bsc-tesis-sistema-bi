@@ -3,6 +3,7 @@ package pe.com.banco.bi.module2.procesocarga.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,9 @@ import pe.com.banco.bi.module2.errorcarga.dto.ErrorCargaResponse;
 import pe.com.banco.bi.module2.errorcarga.entity.ErrorCarga;
 import pe.com.banco.bi.module2.errorcarga.repository.ErrorCargaRepository;
 import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaRequest;
+import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResumenResponse;
 import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResponse;
+import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaTotales;
 import pe.com.banco.bi.module2.procesocarga.entity.ProcesoCarga;
 import pe.com.banco.bi.module2.procesocarga.mapper.ProcesoCargaMapper;
 import pe.com.banco.bi.module2.procesocarga.repository.ProcesoCargaRepository;
@@ -35,6 +38,7 @@ import pe.com.banco.bi.securitydomain.usuario.entity.Usuario;
 import pe.com.banco.bi.securitydomain.usuario.repository.UsuarioRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -109,12 +113,51 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProcesoCargaResponse> listarCargas(Long tipoCargaId, Long estadoCargaId, String codigo,
+    public Page<ProcesoCargaResponse> listarCargas(Long tipoCargaId, List<String> estados, Long usuarioId, String search,
                                                     LocalDateTime fechaDesde, LocalDateTime fechaHasta, Pageable pageable) {
         return procesoCargaRepository.findAll(
-                ProcesoCargaSpecification.withFilters(tipoCargaId, estadoCargaId, codigo, fechaDesde, fechaHasta),
+                ProcesoCargaSpecification.withFilters(tipoCargaId, estados, usuarioId, search, fechaDesde, fechaHasta),
                 pageable
         ).map(this::buildResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProcesoCargaResumenResponse resumenCargas(Long tipoCargaId, List<String> estados, Long usuarioId, String search,
+                                                      LocalDateTime fechaDesde, LocalDateTime fechaHasta) {
+        Specification<ProcesoCarga> spec = ProcesoCargaSpecification.withFilters(tipoCargaId, estados, usuarioId, search, fechaDesde, fechaHasta);
+
+        long total = procesoCargaRepository.count(spec);
+        long pendientes = contarPorEstado(spec, "PENDIENTE");
+        long enValidacion = contarPorEstado(spec, "EN_VALIDACION");
+        long validadas = contarPorEstado(spec, "VALIDADA");
+        long conErrores = contarPorEstado(spec, "CON_ERRORES");
+        long publicadas = contarPorEstado(spec, "PUBLICADA");
+        long rechazadas = contarPorEstado(spec, "RECHAZADA");
+
+        ProcesoCargaTotales totales = procesoCargaRepository.calcularTotales(tipoCargaId, estados, usuarioId, search, fechaDesde, fechaHasta)
+                .orElse(new ProcesoCargaTotales(0L, 0L, 0L));
+        Long totalRegistros = totales.totalRegistros();
+        Long totalRegValidos = totales.totalRegValidos();
+        Long totalRegInvalidos = totales.totalRegInvalidos();
+
+        return ProcesoCargaResumenResponse.builder()
+                .total(total)
+                .pendientes(pendientes)
+                .enValidacion(enValidacion)
+                .validadas(validadas)
+                .conErrores(conErrores)
+                .publicadas(publicadas)
+                .rechazadas(rechazadas)
+                .totalRegistros(totalRegistros)
+                .totalRegValidos(totalRegValidos)
+                .totalRegInvalidos(totalRegInvalidos)
+                .build();
+    }
+
+    private long contarPorEstado(Specification<ProcesoCarga> baseSpec, String codigoEstado) {
+        return procesoCargaRepository.count(baseSpec
+                .and((root, query, cb) -> cb.equal(root.get("estadoCarga").get("codigo"), codigoEstado)));
     }
 
     @Override

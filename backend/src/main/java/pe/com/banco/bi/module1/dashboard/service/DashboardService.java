@@ -11,8 +11,13 @@ import pe.com.banco.bi.module1.dashboard.dto.SerieData;
 import pe.com.banco.bi.module1.oferta.repository.OfertaRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,34 +33,65 @@ public class DashboardService {
         long totalClientes = clienteRepository.count();
         long totalOfertas = ofertaRepository.count();
 
-        Double montoTotal = ofertaRepository.findAll().stream()
-                .map(o -> o.getMonto() != null ? o.getMonto() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .doubleValue();
-
-        Double ticketPromedio = totalOfertas > 0 ? montoTotal / totalOfertas : 0.0;
+        BigDecimal montoTotal = ofertaRepository.sumMontoTotal();
+        BigDecimal ticketPromedio = ofertaRepository.promedioMontoTotal();
 
         return DashboardResponse.builder()
                 .kpis(DashboardKpiResponse.builder()
                         .totalCampanias(totalCampanias)
                         .totalClientes(totalClientes)
                         .totalOfertas(totalOfertas)
-                        .montoTotalOfertado(montoTotal)
-                        .ticketPromedio(ticketPromedio)
+                        .montoTotalOfertado(montoTotal.doubleValue())
+                        .ticketPromedio(ticketPromedio.doubleValue())
                         .tasaConversion(0.0)
                         .build())
                 .campaniasPorProducto(calcularCampaniasPorProducto())
-                .evolucionMonto(new ArrayList<>())
-                .ticketPromedioPorSegmento(new ArrayList<>())
+                .evolucionMonto(calcularEvolucionMonto())
+                .ticketPromedioPorSegmento(calcularTicketPromedioPorSegmento())
                 .build();
     }
 
     private List<SerieData> calcularCampaniasPorProducto() {
-        List<SerieData> data = new ArrayList<>();
-        campaniaRepository.findAll().forEach(c -> {
-            String producto = c.getProducto() != null ? c.getProducto().getNombre() : "Sin producto";
-            data.add(SerieData.builder().label(producto).valor(1.0).build());
-        });
-        return data;
+        List<Object[]> resultado = campaniaRepository.countCampaniasByProducto();
+        return resultado.stream()
+                .map(row -> SerieData.builder()
+                        .label((String) row[0])
+                        .valor(((Number) row[1]).doubleValue())
+                        .build())
+                .toList();
     }
+
+    private List<SerieData> calcularEvolucionMonto() {
+        LocalDate fechaDesde = LocalDate.now().minusMonths(11).withDayOfMonth(1);
+        List<Object[]> resultado = ofertaRepository.calcularEvolucionMonto(fechaDesde);
+
+        Map<String, BigDecimal> valoresPorMes = resultado.stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (BigDecimal) row[1],
+                        (a, b) -> a
+                ));
+
+        List<SerieData> serie = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy");
+        for (int i = 11; i >= 0; i--) {
+            LocalDate mes = LocalDate.now().minusMonths(i).withDayOfMonth(1);
+            String label = mes.format(formatter);
+            String key = mes.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            BigDecimal valor = valoresPorMes.getOrDefault(key, BigDecimal.ZERO);
+            serie.add(SerieData.builder().label(label).valor(valor.doubleValue()).build());
+        }
+        return serie;
+    }
+
+    private List<SerieData> calcularTicketPromedioPorSegmento() {
+        List<Object[]> resultado = ofertaRepository.calcularTicketPromedioPorSegmento();
+        return resultado.stream()
+                .map(row -> SerieData.builder()
+                        .label((String) row[0])
+                        .valor(((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP).doubleValue())
+                        .build())
+                .toList();
+    }
+
 }

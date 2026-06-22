@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import pe.com.banco.bi.module1.campania.dto.CampaniaResumenResponse;
 import pe.com.banco.bi.module1.campania.dto.CampaniaResponse;
 import pe.com.banco.bi.module1.campania.service.CampaniaService;
+import pe.com.banco.bi.module1.oferta.dto.OfertaResumenResponse;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResponse;
 
 @RestController
@@ -34,6 +36,17 @@ public class CampaniaController {
         return ResponseEntity.ok(campaniaService.listarCampanias(codigo, nombre, productoId, periodoId, estado, pageable));
     }
 
+    @GetMapping("/resumen")
+    @PreAuthorize("hasAuthority('CAMPANIAS_VER')")
+    public ResponseEntity<CampaniaResumenResponse> resumen(
+            @RequestParam(required = false) String codigo,
+            @RequestParam(required = false) String nombre,
+            @RequestParam(required = false) Long productoId,
+            @RequestParam(required = false) Long periodoId,
+            @RequestParam(required = false) String estado) {
+        return ResponseEntity.ok(campaniaService.resumenCampanias(codigo, nombre, productoId, periodoId, estado));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('CAMPANIAS_VER')")
     public ResponseEntity<CampaniaResponse> obtener(@PathVariable Long id) {
@@ -48,7 +61,18 @@ public class CampaniaController {
 
     @GetMapping("/{id}/ofertas")
     @PreAuthorize("hasAuthority('CAMPANIAS_VER')")
-    public ResponseEntity<Page<OfertaResponse>> listarOfertas(@PathVariable Long id, Pageable pageable) {
-        return ResponseEntity.ok(campaniaService.listarOfertasPorCampania(id, pageable));
+    public ResponseEntity<Page<OfertaResponse>> listarOfertas(
+            @PathVariable Long id,
+            @RequestParam(required = false) String search,
+            Pageable pageable) {
+        return ResponseEntity.ok(campaniaService.listarOfertasPorCampania(id, search, pageable));
+    }
+
+    @GetMapping("/{id}/ofertas/resumen")
+    @PreAuthorize("hasAuthority('CAMPANIAS_VER')")
+    public ResponseEntity<OfertaResumenResponse> resumenOfertas(
+            @PathVariable Long id,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(campaniaService.resumenOfertasPorCampania(id, search));
     }
 }
