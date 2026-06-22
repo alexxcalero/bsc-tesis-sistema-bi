@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { clientesApi, catalogosApi } from '@/lib/api';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { Search, Filter, ChevronRight, RotateCcw, Loader2 } from 'lucide-react';
 import {
   Select,
@@ -39,13 +40,16 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('');
   const [segmentoFilter, setSegmentoFilter] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [resumen, setResumen] = useState({ total: 0, personasNaturales: 0, personasJuridicas: 0 });
 
   useEffect(() => {
     loadCatalogos();
-    loadClientes();
+    loadClientes(1);
+    loadResumen();
   }, []);
 
   const loadCatalogos = async () => {
@@ -61,27 +65,34 @@ export default function ClientsPage() {
     }
   };
 
-  const loadClientes = async (page = currentPage) => {
+  const buildFilters = (): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (searchTerm) {
+      if (/^\d+$/.test(searchTerm)) {
+        params.numeroDocumento = searchTerm;
+      } else {
+        params.nombre = searchTerm;
+      }
+    }
+    if (tipoFilter) params.tipoClienteId = tipoFilter;
+    if (segmentoFilter) params.segmentoId = segmentoFilter;
+    return params;
+  };
+
+  const loadClientes = async (page: number) => {
     try {
       setLoading(true);
       setError('');
       const params: Record<string, string> = {
-        page: String(page),
-        size: String(PAGE_SIZE),
+        page: String(page - 1),
+        size: String(pageSize),
+        ...buildFilters(),
       };
-      if (searchTerm) {
-        if (/^\d+$/.test(searchTerm)) {
-          params.numeroDocumento = searchTerm;
-        } else {
-          params.nombre = searchTerm;
-        }
-      }
-      if (tipoFilter) params.tipoClienteId = tipoFilter;
-      if (segmentoFilter) params.segmentoId = segmentoFilter;
 
       const response = await clientesApi.listar(params);
       setClientes(response.content || []);
-      setTotalPages(response.totalPages || 0);
+      setTotalPages(response.totalPages || 1);
+      setTotalItems(response.totalElements || 0);
     } catch (err: any) {
       setError(err.message || 'Error al cargar clientes');
     } finally {
@@ -89,26 +100,60 @@ export default function ClientsPage() {
     }
   };
 
+  const loadResumen = async () => {
+    try {
+      const data = await clientesApi.resumen(buildFilters());
+      setResumen({
+        total: data.total || 0,
+        personasNaturales: data.personasNaturales || 0,
+        personasJuridicas: data.personasJuridicas || 0,
+      });
+    } catch (err: any) {
+      console.error('Error cargando resumen de clientes', err);
+    }
+  };
+
+  const refreshData = (page: number = 1) => {
+    loadClientes(page);
+    loadResumen();
+  };
+
   const handleSearch = () => {
-    setCurrentPage(0);
-    loadClientes(0);
+    setCurrentPage(1);
+    refreshData(1);
   };
 
   const handleResetFilters = () => {
     setSearchTerm('');
     setTipoFilter('');
     setSegmentoFilter('');
-    setCurrentPage(0);
-    loadClientes(0);
+    setCurrentPage(1);
+    refreshData(1);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     loadClientes(page);
+    loadResumen();
   };
 
-  const personasNaturales = clientes.filter((c) => c.tipoCliente?.codigo === 'NATURAL').length;
-  const personasJuridicas = clientes.filter((c) => c.tipoCliente?.codigo === 'JURIDICA').length;
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleTipoFilterChange = (val: string) => {
+    setTipoFilter(val === 'all' ? '' : val);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleSegmentoFilterChange = (val: string) => {
+    setSegmentoFilter(val === 'all' ? '' : val);
+    setCurrentPage(1);
+    refreshData(1);
+  };
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Cliente 360' }]}>
@@ -145,7 +190,7 @@ export default function ClientsPage() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Tipo de Cliente</label>
-                <Select value={tipoFilter || 'all'} onValueChange={(val) => setTipoFilter(val === 'all' ? '' : val)}>
+                <Select value={tipoFilter || 'all'} onValueChange={handleTipoFilterChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
@@ -162,7 +207,7 @@ export default function ClientsPage() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Segmento</label>
-                <Select value={segmentoFilter || 'all'} onValueChange={(val) => setSegmentoFilter(val === 'all' ? '' : val)}>
+                <Select value={segmentoFilter || 'all'} onValueChange={handleSegmentoFilterChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
@@ -191,15 +236,15 @@ export default function ClientsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-sm text-muted-foreground">Total de Clientes</p>
-              <p className="text-2xl font-bold text-foreground">{clientes.length}</p>
+              <p className="text-2xl font-bold text-foreground">{resumen.total}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Personas Naturales</p>
-              <p className="text-2xl font-bold text-foreground">{personasNaturales}</p>
+              <p className="text-2xl font-bold text-foreground">{resumen.personasNaturales}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Personas Jurídicas</p>
-              <p className="text-2xl font-bold text-foreground">{personasJuridicas}</p>
+              <p className="text-2xl font-bold text-foreground">{resumen.personasJuridicas}</p>
             </div>
           </div>
         </Card>
@@ -254,31 +299,14 @@ export default function ClientsPage() {
                 </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
-                  <p className="text-sm text-muted-foreground">
-                    Página {currentPage + 1} de {totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 0}
-                      onClick={() => handlePageChange(currentPage - 1)}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage >= totalPages - 1}
-                      onClick={() => handlePageChange(currentPage + 1)}
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <DataTablePagination
+                page={currentPage}
+                pageCount={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </>
           )}
         </Card>

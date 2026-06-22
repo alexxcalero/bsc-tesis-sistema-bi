@@ -7,11 +7,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/bi/status-badge';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { campaniasApi } from '@/lib/api';
 import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface CampaniaDetalle {
   id: number;
@@ -24,9 +25,6 @@ interface CampaniaDetalle {
   periodo?: { id: number; codigo: string; nombre: string };
   producto?: { id: number; codigo: string; nombre: string };
   subproducto?: { id: number; codigo: string; nombre: string };
-  clientesAlcanzados: number;
-  montoOfertado: number;
-  ticketPromedio: number;
 }
 
 interface OfertaItem {
@@ -48,29 +46,55 @@ interface PaginatedResponse {
   size: number;
 }
 
+interface OfertaResumen {
+  totalOfertas: number;
+  clientesAlcanzados: number;
+  montoTotalOfertado: number;
+  ticketPromedio: number;
+}
+
 export default function CampaignDetailPage() {
   const params = useParams();
   const campaignId = params.id as string;
 
   const [campaign, setCampaign] = useState<CampaniaDetalle | null>(null);
   const [ofertas, setOfertas] = useState<OfertaItem[]>([]);
+  const [resumen, setResumen] = useState<OfertaResumen>({
+    totalOfertas: 0,
+    clientesAlcanzados: 0,
+    montoTotalOfertado: 0,
+    ticketPromedio: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [searchOfertasTermos, setSearchOfertasTermos] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     loadCampaign();
   }, [campaignId]);
 
   useEffect(() => {
-    if (campaign) {
-      loadOfertas(1);
-    }
-  }, [campaign]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const buildParams = (): Record<string, string> => {
+    const params: Record<string, string> = {
+      page: String(currentPage - 1),
+      size: String(pageSize),
+    };
+    if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+    return params;
+  };
 
   const loadCampaign = async () => {
     try {
@@ -85,25 +109,34 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const loadOfertas = async (page: number) => {
+  const loadOfertas = useCallback(async () => {
+    if (!campaignId) return;
     try {
-      const data: PaginatedResponse = await campaniasApi.listarOfertas(campaignId, {
-        page: String(page - 1),
-        size: String(ITEMS_PER_PAGE),
-      });
+      const data: PaginatedResponse = await campaniasApi.listarOfertas(campaignId, buildParams());
       setOfertas(data.content || []);
+      setTotalElements(data.totalElements || 0);
       setTotalPages(data.totalPages || 1);
-      setCurrentPage(page);
     } catch (err: any) {
       console.error('Error cargando ofertas', err);
     }
-  };
+  }, [campaignId, currentPage, pageSize, debouncedSearch]);
 
-  const filteredOfertas = useMemo(() => {
-    if (!searchOfertasTermos) return ofertas;
-    const term = searchOfertasTermos.toLowerCase();
-    return ofertas.filter((o) => o.clienteNombreCompleto.toLowerCase().includes(term));
-  }, [ofertas, searchOfertasTermos]);
+  const loadResumen = useCallback(async () => {
+    if (!campaignId) return;
+    try {
+      const params: Record<string, string> = {};
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      const data: OfertaResumen = await campaniasApi.resumenOfertas(campaignId, params);
+      setResumen(data);
+    } catch {
+      setResumen({ totalOfertas: 0, clientesAlcanzados: 0, montoTotalOfertado: 0, ticketPromedio: 0 });
+    }
+  }, [campaignId, debouncedSearch]);
+
+  useEffect(() => {
+    loadOfertas();
+    loadResumen();
+  }, [loadOfertas, loadResumen]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -138,7 +171,7 @@ export default function CampaignDetailPage() {
   };
 
   const handleResetOfertasFilters = () => {
-    setSearchOfertasTermos('');
+    setSearchTerm('');
     setCurrentPage(1);
   };
 
@@ -203,22 +236,22 @@ export default function CampaignDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             label="Clientes Alcanzados"
-            value={campaign.clientesAlcanzados?.toLocaleString() || '0'}
+            value={resumen.clientesAlcanzados.toLocaleString()}
             icon={<Users className="w-5 h-5" />}
           />
           <KPICard
             label="Total de Ofertas"
-            value={ofertas.length.toLocaleString()}
+            value={resumen.totalOfertas.toLocaleString()}
             icon={<Target className="w-5 h-5" />}
           />
           <KPICard
             label="Monto Total Ofertado"
-            value={formatCurrency(campaign.montoOfertado)}
+            value={formatCurrency(resumen.montoTotalOfertado)}
             icon={<DollarSign className="w-5 h-5" />}
           />
           <KPICard
             label="Ticket Promedio"
-            value={formatCurrency(campaign.ticketPromedio)}
+            value={formatCurrency(resumen.ticketPromedio)}
             icon={<DollarSign className="w-5 h-5" />}
           />
         </div>
@@ -238,8 +271,8 @@ export default function CampaignDetailPage() {
           />
           <StatCard
             title="Ticket Promedio"
-            value={formatCurrency(campaign.ticketPromedio)}
-            description={`Total: ${formatCurrency(campaign.montoOfertado)}`}
+            value={formatCurrency(resumen.ticketPromedio)}
+            description={`Total: ${formatCurrency(resumen.montoTotalOfertado)}`}
             variant="default"
           />
         </div>
@@ -247,20 +280,20 @@ export default function CampaignDetailPage() {
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Ofertas Asociadas</h3>
-            <p className="text-sm text-muted-foreground">{filteredOfertas.length} ofertas</p>
+            <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
           </div>
 
           <div className="mb-6 p-4 bg-secondary/20 rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">Buscar por Nombre</label>
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Buscar por Nombre o Documento</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Nombre del cliente..."
-                    value={searchOfertasTermos}
+                    placeholder="Nombre del cliente o número de documento..."
+                    value={searchTerm}
                     onChange={(e) => {
-                      setSearchOfertasTermos(e.target.value);
+                      setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
                     className="pl-10 border border-slate-300 bg-white rounded-md shadow-sm hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:border-blue-500"
@@ -293,8 +326,8 @@ export default function CampaignDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredOfertas.length > 0 ? (
-                  filteredOfertas.map((oferta) => (
+                {ofertas.length > 0 ? (
+                  ofertas.map((oferta) => (
                     <tr key={oferta.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="py-3 px-4 font-medium">{oferta.clienteNombreCompleto}</td>
                       <td className="py-3 px-4 text-muted-foreground">{campaign.producto?.nombre || '-'}</td>
@@ -324,31 +357,17 @@ export default function CampaignDetailPage() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex flex-col items-start gap-4 mt-6 pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                Página {currentPage} de {totalPages}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => loadOfertas(currentPage - 1)}
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => loadOfertas(currentPage + 1)}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTablePagination
+            page={currentPage}
+            pageCount={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </Card>
       </div>
     </MainLayout>

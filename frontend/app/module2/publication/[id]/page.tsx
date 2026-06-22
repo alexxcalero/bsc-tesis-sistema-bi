@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle, AlertCircle, User, Loader2 } from 'lucide-react
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 
 interface CargaDetalle {
   id: number;
@@ -27,6 +28,8 @@ export default function PublicacionCargaPage() {
   const params = useParams();
   const router = useRouter();
   const procesoId = params.id as string;
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission('CARGAS_PUBLICAR');
 
   const [proceso, setProceso] = useState<CargaDetalle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +101,7 @@ export default function PublicacionCargaPage() {
     );
   }
 
-  const canPublish = proceso.totalRegValidos > 0;
+  const hayRegistrosValidos = proceso.totalRegValidos > 0;
   const estadoPermitePublicar = ['VALIDADA', 'CON_ERRORES'].includes(proceso.estadoCarga?.codigo || '');
 
   if (publicada) {
@@ -213,7 +216,7 @@ export default function PublicacionCargaPage() {
           </div>
         )}
 
-        {!canPublish && estadoPermitePublicar && (
+        {!hayRegistrosValidos && estadoPermitePublicar && (
           <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-800 dark:text-red-200 flex items-center gap-2">
               <AlertCircle className="w-5 h-5" />
@@ -222,7 +225,7 @@ export default function PublicacionCargaPage() {
           </div>
         )}
 
-        {canPublish && estadoPermitePublicar && (
+        {canPublish && hayRegistrosValidos && estadoPermitePublicar && (
           <Card className="p-6 border-2 border-blue-200 dark:border-blue-800">
             <h3 className="text-lg font-semibold mb-4">Confirmación Explícita</h3>
             <label className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800 cursor-pointer">
@@ -257,13 +260,15 @@ export default function PublicacionCargaPage() {
           <Link href={`/module2/validation/${proceso.id}`}>
             <Button variant="outline">Cancelar Publicación</Button>
           </Link>
-          <Button
-            onClick={handlePublicar}
-            disabled={!canPublish || !confirmada || publicando || !estadoPermitePublicar}
-          >
-            {publicando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            {publicando ? 'Publicando...' : 'Publicar Carga'}
-          </Button>
+          {canPublish && (
+            <Button
+              onClick={handlePublicar}
+              disabled={!hayRegistrosValidos || !confirmada || publicando || !estadoPermitePublicar}
+            >
+              {publicando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {publicando ? 'Publicando...' : 'Publicar Carga'}
+            </Button>
+          )}
         </div>
       </div>
     </MainLayout>

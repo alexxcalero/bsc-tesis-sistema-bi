@@ -9,6 +9,7 @@ import { ArrowLeft, Download, AlertCircle, CheckCircle, ChevronRight, Loader2 } 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 
 interface CargaDetalle {
   id: number;
@@ -32,6 +33,9 @@ interface ErrorCarga {
 export default function ValidacionArchivoPage() {
   const params = useParams();
   const procesoId = params.id as string;
+  const { hasPermission } = useAuth();
+  const canValidate = hasPermission('CARGAS_VALIDAR');
+  const canPublish = hasPermission('CARGAS_PUBLICAR');
   const [proceso, setProceso] = useState<CargaDetalle | null>(null);
   const [errores, setErrores] = useState<ErrorCarga[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,11 +247,13 @@ export default function ValidacionArchivoPage() {
             <Download className="w-4 h-4" />
             Descargar Errores
           </Button>
-          <Button onClick={handleValidar} disabled={validando}>
-            {validando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            {validando ? 'Revalidando...' : 'Revalidar Archivo'}
-          </Button>
-          {(proceso.estadoCarga?.codigo === 'VALIDADA' || proceso.estadoCarga?.codigo === 'CON_ERRORES') && (
+          {canValidate && (
+            <Button onClick={handleValidar} disabled={validando}>
+              {validando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {validando ? 'Revalidando...' : 'Revalidar Archivo'}
+            </Button>
+          )}
+          {canPublish && (proceso.estadoCarga?.codigo === 'VALIDADA' || proceso.estadoCarga?.codigo === 'CON_ERRORES') && (
             <Link href={`/module2/publication/${proceso.id}`}>
               <Button className="gap-2">
                 Ir a Publicación

@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { cargasApi, catalogosApi } from '@/lib/api';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { Plus, Search, RotateCcw, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 import {
   Select,
   SelectContent,
@@ -36,6 +38,9 @@ interface Carga {
 }
 
 export default function BandejaPage() {
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('CARGAS_CREAR');
+
   const [cargas, setCargas] = useState<Carga[]>([]);
   const [tiposCarga, setTiposCarga] = useState<{ id: number; nombre: string }[]>([]);
   const [estadosCarga, setEstadosCarga] = useState<{ id: number; codigo: string; nombre: string }[]>([]);
@@ -47,13 +52,27 @@ export default function BandejaPage() {
   const [estadoFilter, setEstadoFilter] = useState<string>('');
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [resumen, setResumen] = useState({
+    total: 0,
+    pendientes: 0,
+    enValidacion: 0,
+    validadas: 0,
+    conErrores: 0,
+    publicadas: 0,
+    rechazadas: 0,
+    totalRegistros: 0,
+    totalRegValidos: 0,
+    totalRegInvalidos: 0,
+  });
 
   useEffect(() => {
     loadCatalogos();
-    loadCargas();
+    loadCargas(1);
+    loadResumen();
   }, []);
 
   const loadCatalogos = async () => {
@@ -69,24 +88,31 @@ export default function BandejaPage() {
     }
   };
 
-  const loadCargas = async (page = currentPage) => {
+  const buildFilters = (): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (searchTerm) params.codigo = searchTerm;
+    if (tipoFilter) params.tipoCargaId = tipoFilter;
+    if (estadoFilter) params.estadoCargaId = estadoFilter;
+    if (fechaDesde) params.fechaDesde = `${fechaDesde}T00:00:00`;
+    if (fechaHasta) params.fechaHasta = `${fechaHasta}T23:59:59`;
+    return params;
+  };
+
+  const loadCargas = async (page: number) => {
     try {
       setLoading(true);
       setError('');
       const params: Record<string, string> = {
-        page: String(page),
-        size: String(PAGE_SIZE),
+        page: String(page - 1),
+        size: String(pageSize),
         sort: 'createdAt,desc',
+        ...buildFilters(),
       };
-      if (searchTerm) params.codigo = searchTerm;
-      if (tipoFilter) params.tipoCargaId = tipoFilter;
-      if (estadoFilter) params.estadoCargaId = estadoFilter;
-      if (fechaDesde) params.fechaDesde = `${fechaDesde}T00:00:00`;
-      if (fechaHasta) params.fechaHasta = `${fechaHasta}T23:59:59`;
 
       const response = await cargasApi.listar(params);
       setCargas(response.content || []);
-      setTotalPages(response.totalPages || 0);
+      setTotalPages(response.totalPages || 1);
+      setTotalItems(response.totalElements || 0);
     } catch (err: any) {
       setError(err.message || 'Error al cargar la bandeja');
     } finally {
@@ -94,9 +120,34 @@ export default function BandejaPage() {
     }
   };
 
+  const loadResumen = async () => {
+    try {
+      const data = await cargasApi.resumen(buildFilters());
+      setResumen({
+        total: data.total || 0,
+        pendientes: data.pendientes || 0,
+        enValidacion: data.enValidacion || 0,
+        validadas: data.validadas || 0,
+        conErrores: data.conErrores || 0,
+        publicadas: data.publicadas || 0,
+        rechazadas: data.rechazadas || 0,
+        totalRegistros: data.totalRegistros || 0,
+        totalRegValidos: data.totalRegValidos || 0,
+        totalRegInvalidos: data.totalRegInvalidos || 0,
+      });
+    } catch (err: any) {
+      console.error('Error cargando resumen de cargas', err);
+    }
+  };
+
+  const refreshData = (page: number = 1) => {
+    loadCargas(page);
+    loadResumen();
+  };
+
   const handleSearch = () => {
-    setCurrentPage(0);
-    loadCargas(0);
+    setCurrentPage(1);
+    refreshData(1);
   };
 
   const handleResetFilters = () => {
@@ -105,13 +156,44 @@ export default function BandejaPage() {
     setEstadoFilter('');
     setFechaDesde('');
     setFechaHasta('');
-    setCurrentPage(0);
-    loadCargas(0);
+    setCurrentPage(1);
+    refreshData(1);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     loadCargas(page);
+    loadResumen();
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleTipoFilterChange = (val: string) => {
+    setTipoFilter(val === 'all' ? '' : val);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleEstadoFilterChange = (val: string) => {
+    setEstadoFilter(val === 'all' ? '' : val);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleFechaDesdeChange = (val: string) => {
+    setFechaDesde(val);
+    setCurrentPage(1);
+    refreshData(1);
+  };
+
+  const handleFechaHastaChange = (val: string) => {
+    setFechaHasta(val);
+    setCurrentPage(1);
+    refreshData(1);
   };
 
   const getEstadoBadgeStatus = (estado: string) => {
@@ -137,14 +219,7 @@ export default function BandejaPage() {
     return new Date(dateString).toLocaleDateString('es-PE');
   };
 
-  const cargasPendientes = cargas.filter((c) =>
-    ['PENDIENTE', 'EN_VALIDACION'].includes(c.estadoCarga?.codigo || '')
-  ).length;
-  const cargasPublicadas = cargas.filter((c) => c.estadoCarga?.codigo === 'PUBLICADA').length;
-  const totalRegistrosProcesados = cargas.reduce(
-    (sum, c) => sum + (c.resultado?.totalRegistrosProcesados || 0),
-    0
-  );
+  const cargasPendientes = resumen.pendientes + resumen.enValidacion;
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Captura Digital', href: '/module2' }, { label: 'Bandeja de Cargas' }]}>
@@ -154,19 +229,21 @@ export default function BandejaPage() {
             <h1 className="text-3xl font-bold text-foreground">Bandeja de Cargas</h1>
             <p className="text-muted-foreground mt-1">Panel central de gestión de cargas de datos</p>
           </div>
-          <Link href="/module2/registro">
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Nueva Carga
-            </Button>
-          </Link>
+          {canCreate && (
+            <Link href="/module2/registro">
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                Nueva Carga
+              </Button>
+            </Link>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard label="Cargas del Día" value={cargas.length} icon={<Plus className="w-4 h-4" />} />
+          <KPICard label="Total Cargas" value={resumen.total} icon={<Plus className="w-4 h-4" />} />
           <KPICard label="Cargas Pendientes" value={cargasPendientes} icon={<Plus className="w-4 h-4" />} />
-          <KPICard label="Cargas Publicadas" value={cargasPublicadas} icon={<Plus className="w-4 h-4" />} />
-          <KPICard label="Total de Registros" value={totalRegistrosProcesados.toLocaleString()} icon={<Plus className="w-4 h-4" />} />
+          <KPICard label="Cargas Publicadas" value={resumen.publicadas} icon={<Plus className="w-4 h-4" />} />
+          <KPICard label="Total de Registros" value={resumen.totalRegistros.toLocaleString()} icon={<Plus className="w-4 h-4" />} />
         </div>
 
         <Card className="p-6">
@@ -187,7 +264,7 @@ export default function BandejaPage() {
 
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Tipo de Carga</label>
-              <Select value={tipoFilter || 'all'} onValueChange={(val) => setTipoFilter(val === 'all' ? '' : val)}>
+              <Select value={tipoFilter || 'all'} onValueChange={handleTipoFilterChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
@@ -204,7 +281,7 @@ export default function BandejaPage() {
 
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Estado</label>
-              <Select value={estadoFilter || 'all'} onValueChange={(val) => setEstadoFilter(val === 'all' ? '' : val)}>
+              <Select value={estadoFilter || 'all'} onValueChange={handleEstadoFilterChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
@@ -227,11 +304,11 @@ export default function BandejaPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Fecha Desde</label>
-              <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+              <Input type="date" value={fechaDesde} onChange={(e) => handleFechaDesdeChange(e.target.value)} />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Fecha Hasta</label>
-              <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+              <Input type="date" value={fechaHasta} onChange={(e) => handleFechaHastaChange(e.target.value)} />
             </div>
           </div>
 
@@ -304,31 +381,14 @@ export default function BandejaPage() {
                 </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
-                  <p className="text-sm text-muted-foreground">
-                    Página {currentPage + 1} de {totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 0}
-                      onClick={() => handlePageChange(currentPage - 1)}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage >= totalPages - 1}
-                      onClick={() => handlePageChange(currentPage + 1)}
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <DataTablePagination
+                page={currentPage}
+                pageCount={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </>
           )}
         </Card>

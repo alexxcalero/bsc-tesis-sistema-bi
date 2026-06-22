@@ -2,19 +2,33 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Layers, Upload, BarChart3, Mail, Plus, CheckSquare, Clock } from 'lucide-react';
+import { LayoutDashboard, Upload, BarChart3, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context';
 
-const modules = [
+interface SidebarItem {
+  label: string;
+  href: string;
+  permiso?: string;
+}
+
+interface SidebarModule {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  items: SidebarItem[];
+}
+
+const modules: SidebarModule[] = [
   {
     id: 'module1',
     label: 'Visualización e Integración',
     icon: LayoutDashboard,
     items: [
       { label: 'Dashboard', href: '/module1/dashboard' },
-      { label: 'Campañas Comerciales', href: '/module1/campaigns' },
-      { label: 'Cliente 360', href: '/module1/clients' },
-      { label: 'Reportes y Exportación', href: '/module1/reports' },
+      { label: 'Campañas Comerciales', href: '/module1/campaigns', permiso: 'CAMPANIAS_VER' },
+      { label: 'Cliente 360', href: '/module1/clients', permiso: 'CLIENTES_VER' },
+      { label: 'Reportes y Exportación', href: '/module1/reports', permiso: 'REPORTES_VER' },
     ],
   },
   {
@@ -22,17 +36,27 @@ const modules = [
     label: 'Captura Digital',
     icon: Upload,
     items: [
-      { label: 'Bandeja de Cargas', href: '/module2/inbox' },
-      { label: 'Registro de Proceso de Carga', href: '/module2/registro' },
-      { label: 'Validación de Archivo de Carga', href: '/module2/validation' },
-      { label: 'Consulta de Resultados y Errores', href: '/module2/results' },
-      { label: 'Historial y Trazabilidad de Cargas', href: '/module2/history' },
+      { label: 'Bandeja de Cargas', href: '/module2/inbox', permiso: 'CARGAS_VER' },
+      { label: 'Registro de Proceso de Carga', href: '/module2/registro', permiso: 'CARGAS_CREAR' },
+      { label: 'Validación de Archivo de Carga', href: '/module2/validation', permiso: 'CARGAS_VALIDAR' },
+      { label: 'Consulta de Resultados y Errores', href: '/module2/results', permiso: 'CARGAS_VER' },
+      { label: 'Historial y Trazabilidad de Cargas', href: '/module2/history', permiso: 'CARGAS_VER' },
+    ],
+  },
+  {
+    id: 'admin',
+    label: 'Administración',
+    icon: Shield,
+    items: [
+      { label: 'Gestión de Usuarios', href: '/admin/usuarios', permiso: 'USUARIOS_VER' },
+      { label: 'Auditoría', href: '/admin/auditoria', permiso: 'AUDITORIA_VER' },
     ],
   },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { hasPermission } = useAuth();
 
   return (
     <aside className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0 overflow-y-auto">
@@ -49,18 +73,31 @@ export function AppSidebar() {
       <nav className="p-4 space-y-6">
         {modules.map((module) => {
           const Icon = module.icon;
-          const isModuleActive = module.items.some((item) =>
+          const visibleItems = module.items.filter(
+            (item) => !item.permiso || hasPermission(item.permiso)
+          );
+
+          if (visibleItems.length === 0) return null;
+
+          const isModuleActive = visibleItems.some((item) =>
             pathname.startsWith(item.href.split('/').slice(0, 3).join('/'))
           );
 
           return (
             <div key={module.id}>
-              <div className="flex items-center gap-2 px-4 py-2 mb-2 text-sm font-semibold text-sidebar-foreground">
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 mb-2 text-sm font-semibold rounded transition-colors',
+                  isModuleActive
+                    ? 'text-sidebar-primary'
+                    : 'text-sidebar-foreground'
+                )}
+              >
                 <Icon className="w-4 h-4" />
                 {module.label}
               </div>
               <div className="space-y-1">
-                {module.items.map((item) => {
+                {visibleItems.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <Link

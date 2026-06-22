@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/bi/status-badge';
-import { cargasApi } from '@/lib/api';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
+import { cargasApi, catalogosApi } from '@/lib/api';
 import { Search, RotateCcw, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -35,31 +36,66 @@ interface PaginatedResponse {
   size: number;
 }
 
+interface TipoCarga {
+  id: number;
+  codigo: string;
+  nombre: string;
+}
+
 const TIPO_CODIGO_A_FILTRO: Record<string, string> = {
   CAMPANIAS: 'campañas',
   CLIENTES: 'clientes',
   OFERTAS: 'ofertas',
 };
 
+const ESTADOS_VALIDACION = ['VALIDADA', 'CON_ERRORES'];
+
 export default function ValidationPage() {
   const [cargas, setCargas] = useState<CargaItem[]>([]);
+  const [tiposCarga, setTiposCarga] = useState<TipoCarga[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  useEffect(() => {
+    loadTiposCarga();
+  }, []);
 
   useEffect(() => {
     loadCargas();
-  }, []);
+  }, [currentPage, pageSize, searchTerm, tipoFilter]);
+
+  const loadTiposCarga = async () => {
+    try {
+      const data = await catalogosApi.listarTiposCarga();
+      setTiposCarga(data || []);
+    } catch {
+      setTiposCarga([]);
+    }
+  };
 
   const loadCargas = async () => {
     try {
       setLoading(true);
       setError('');
-      const data: PaginatedResponse = await cargasApi.listar({ size: '1000' });
+      const tipoCargaId = getTipoCargaId(tipoFilter);
+      const params: Record<string, string> = {
+        page: String(currentPage - 1),
+        size: String(pageSize),
+        estados: ESTADOS_VALIDACION.join(','),
+      };
+      if (tipoCargaId) params.tipoCargaId = tipoCargaId;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+
+      const data: PaginatedResponse = await cargasApi.listar(params);
       setCargas(data.content || []);
+      setTotalElements(data.totalElements || 0);
+      setTotalPages(data.totalPages || 0);
     } catch (err: any) {
       setError(err.message || 'Error al cargar validaciones');
     } finally {
@@ -67,24 +103,20 @@ export default function ValidationPage() {
     }
   };
 
-  const filteredProcesos = useMemo(() => {
-    return cargas
-      .filter((proceso) =>
-        proceso.estadoCarga?.codigo === 'VALIDADA' || proceso.estadoCarga?.codigo === 'CON_ERRORES'
-      )
-      .filter((proceso) => {
-        const term = searchTerm.toLowerCase();
-        const matchesSearch =
-          (proceso.archivo?.nombreArchivo || '').toLowerCase().includes(term) ||
-          proceso.codigo.toLowerCase().includes(term);
-        const matchesTipo = !tipoFilter || (TIPO_CODIGO_A_FILTRO[proceso.tipoCarga?.codigo || ''] === tipoFilter);
-        return matchesSearch && matchesTipo;
-      });
-  }, [cargas, searchTerm, tipoFilter]);
+  const getTipoCargaId = (filtro: string) => {
+    const tipo = tiposCarga.find((t) => TIPO_CODIGO_A_FILTRO[t.codigo] === filtro);
+    return tipo ? String(tipo.id) : '';
+  };
 
-  const totalPages = Math.ceil(filteredProcesos.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProcesos = filteredProcesos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleTipoChange = (value: string) => {
+    setTipoFilter(value === 'all' ? '' : value);
+    setCurrentPage(1);
+  };
 
   const handleResetFilters = () => {
     setSearchTerm('');
@@ -112,7 +144,7 @@ export default function ValidationPage() {
     }
   };
 
-  if (loading) {
+  if (loading && cargas.length === 0) {
     return (
       <MainLayout breadcrumbs={[{ label: 'Captura Digital', href: '/module2' }, { label: 'Validación de Archivo de Carga' }]}>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -160,10 +192,7 @@ export default function ValidationPage() {
                 <Input
                   placeholder="Nombre de archivo o ID de carga..."
                   value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10 border border-slate-300 bg-white rounded-md shadow-sm hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:border-blue-500"
                 />
               </div>
@@ -175,10 +204,7 @@ export default function ValidationPage() {
               </label>
               <Select
                 value={tipoFilter || 'all'}
-                onValueChange={(val) => {
-                  setTipoFilter(val === 'all' ? '' : val);
-                  setCurrentPage(1);
-                }}
+                onValueChange={handleTipoChange}
               >
                 <SelectTrigger className="border border-slate-300 bg-white rounded-md shadow-sm hover:border-slate-400 focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
                   <SelectValue placeholder="Todos los tipos" />
@@ -218,8 +244,8 @@ export default function ValidationPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProcesos.length > 0 ? (
-                  paginatedProcesos.map((proceso) => {
+                {cargas.length > 0 ? (
+                  cargas.map((proceso) => {
                     const { status, label } = getStatusInfo(proceso.estadoCarga?.codigo);
 
                     return (
@@ -254,78 +280,19 @@ export default function ValidationPage() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex flex-col items-start gap-4 mt-6 p-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProcesos.length)} de{' '}
-                {filteredProcesos.length} validaciones
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                >
-                  Anterior
-                </Button>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {totalPages > 0 && (
-                    <Button
-                      variant={currentPage === 1 ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-8 h-8 p-0"
-                      onClick={() => setCurrentPage(1)}
-                    >
-                      1
-                    </Button>
-                  )}
-
-                  {currentPage > 3 && totalPages > 6 && (
-                    <span className="text-muted-foreground px-2">...</span>
-                  )}
-
-                  {Array.from({ length: Math.min(5, totalPages - 1) }, (_, i) => {
-                    const page = Math.max(2, currentPage - 2) + i;
-                    return page < totalPages ? (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    ) : null;
-                  })}
-
-                  {currentPage < totalPages - 2 && totalPages > 6 && (
-                    <span className="text-muted-foreground px-2">...</span>
-                  )}
-
-                  {totalPages > 1 && (
-                    <Button
-                      variant={currentPage === totalPages ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-8 h-8 p-0"
-                      onClick={() => setCurrentPage(totalPages)}
-                    >
-                      {totalPages}
-                    </Button>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <div className="px-6">
+            <DataTablePagination
+              page={currentPage}
+              pageCount={totalPages}
+              totalItems={totalElements}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </Card>
       </div>
     </MainLayout>

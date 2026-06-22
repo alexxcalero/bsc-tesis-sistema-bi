@@ -1,5 +1,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+import { toast } from 'sonner';
+
 export interface ApiError {
   message: string;
   status: number;
@@ -59,6 +61,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // ignore
     }
+
+    if (response.status === 403) {
+      toast.error('Acceso denegado', {
+        description: 'No tienes permisos para realizar esta acción.',
+      });
+    } else if (response.status === 401) {
+      toast.error('Sesión expirada', {
+        description: 'Por favor, inicia sesión nuevamente.',
+      });
+    }
+
     throw { message, status: response.status } as ApiError;
   }
   if (response.status === 204) {
@@ -163,9 +176,13 @@ export const dashboardApi = {
 export const campaniasApi = {
   listar: (params?: Record<string, string>) =>
     apiFetch<any>(`/campanias?${new URLSearchParams(params).toString()}`),
+  resumen: (params?: Record<string, string>) =>
+    apiFetch<any>(`/campanias/resumen?${new URLSearchParams(params).toString()}`),
   obtener: (id: number | string) => apiFetch<any>(`/campanias/${id}`),
   listarOfertas: (id: number | string, params?: Record<string, string>) =>
     apiFetch<any>(`/campanias/${id}/ofertas?${new URLSearchParams(params).toString()}`),
+  resumenOfertas: (id: number | string, params?: Record<string, string>) =>
+    apiFetch<any>(`/campanias/${id}/ofertas/resumen?${new URLSearchParams(params).toString()}`),
   recalcularMetricas: (id: number | string) =>
     apiFetch<any>(`/campanias/${id}/recalcular-metricas`, { method: 'POST' }),
 };
@@ -173,8 +190,13 @@ export const campaniasApi = {
 export const clientesApi = {
   listar: (params?: Record<string, string>) =>
     apiFetch<any>(`/clientes?${new URLSearchParams(params).toString()}`),
-  obtener: (id: number | string) => apiFetch<any>(`/clientes/${id}`),
+  resumen: (params?: Record<string, string>) =>
+    apiFetch<any>(`/clientes/resumen?${new URLSearchParams(params).toString()}`),
   detalle360: (id: number | string) => apiFetch<any>(`/clientes/${id}/detalle-360`),
+  listarCampanias: (id: number | string, params?: Record<string, string>) =>
+    apiFetch<any>(`/clientes/${id}/campanias?${new URLSearchParams(params).toString()}`),
+  listarOfertas: (id: number | string, params?: Record<string, string>) =>
+    apiFetch<any>(`/clientes/${id}/ofertas?${new URLSearchParams(params).toString()}`),
 };
 
 export const catalogosApi = {
@@ -191,6 +213,10 @@ export const catalogosApi = {
 export const cargasApi = {
   listar: (params?: Record<string, string>) =>
     apiFetch<any>(`/cargas?${new URLSearchParams(params).toString()}`),
+  resumen: (params?: Record<string, string>) =>
+    apiFetch<any>(`/cargas/estadisticas/resumen?${new URLSearchParams(params).toString()}`),
+  listarUsuariosResponsables: () =>
+    apiFetch<Usuario[]>('/cargas/usuarios-responsables'),
   obtener: (id: number | string) => apiFetch<any>(`/cargas/${id}`),
   registrar: (formData: FormData) => apiUploadFile<any>('/cargas', formData),
   validar: (id: number | string) =>
@@ -210,4 +236,27 @@ export const reportesApi = {
       method: 'POST',
       body: JSON.stringify({ filtros: filtros || {} }),
     }),
+};
+
+export const rolesApi = {
+  listar: () => apiFetch<any>('/roles'),
+};
+
+export const usuariosApi = {
+  listar: (params?: Record<string, string>) =>
+    apiFetch<any>(`/usuarios?${new URLSearchParams(params).toString()}`),
+  obtener: (id: number | string) => apiFetch<any>(`/usuarios/${id}`),
+  crear: (data: any) =>
+    apiFetch<any>('/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  actualizar: (id: number | string, data: any) =>
+    apiFetch<any>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  cambiarEstado: (id: number | string, estado: boolean) =>
+    apiFetch<any>(`/usuarios/${id}/estado?estado=${estado}`, { method: 'PATCH' }),
+  cambiarPassword: (id: number | string, data: { password: string }) =>
+    apiFetch<any>(`/usuarios/${id}/password`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export const auditoriasApi = {
+  listar: (params?: Record<string, string>) =>
+    apiFetch<any>(`/auditorias?${new URLSearchParams(params).toString()}`),
 };

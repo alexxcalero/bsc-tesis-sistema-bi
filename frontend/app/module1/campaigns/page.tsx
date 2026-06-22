@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/bi/status-badge';
 import { Input } from '@/components/ui/input';
+import { StatusBadge } from '@/components/bi/status-badge';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { campaniasApi, catalogosApi } from '@/lib/api';
 import { Search, Filter, ChevronRight, RotateCcw, Loader2 } from 'lucide-react';
 import {
@@ -29,6 +30,19 @@ interface Campania {
   producto?: { id: number; codigo: string; nombre: string };
 }
 
+interface PaginatedResponse {
+  content: Campania[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+interface ResumenResponse {
+  total: number;
+  activas: number;
+}
+
 export default function CampaignsPage() {
   const [campanias, setCampanias] = useState<Campania[]>([]);
   const [productos, setProductos] = useState<{ id: number; nombre: string }[]>([]);
@@ -41,10 +55,60 @@ export default function CampaignsPage() {
   const [productoFilter, setProductoFilter] = useState<string>('');
   const [periodoFilter, setPeriodoFilter] = useState<string>('');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [resumen, setResumen] = useState<ResumenResponse>({ total: 0, activas: 0 });
+
   useEffect(() => {
     loadCatalogos();
-    loadCampanias();
   }, []);
+
+  const buildParams = (includePagination: boolean): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (includePagination) {
+      params.page = String(currentPage - 1);
+      params.size = String(pageSize);
+    }
+    if (searchTerm.trim()) params.nombre = searchTerm.trim();
+    if (statusFilter) params.estado = statusFilter;
+    if (productoFilter) params.productoId = productoFilter;
+    if (periodoFilter) params.periodoId = periodoFilter;
+    return params;
+  };
+
+  const loadCampanias = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response: PaginatedResponse = await campaniasApi.listar(buildParams(true));
+      setCampanias(response.content || []);
+      setTotalElements(response.totalElements || 0);
+      setTotalPages(response.totalPages || 0);
+    } catch (err: any) {
+      setError(err.message || 'Error al cargar campañas');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, searchTerm, statusFilter, productoFilter, periodoFilter]);
+
+  const loadResumen = useCallback(async () => {
+    try {
+      const data: ResumenResponse = await campaniasApi.resumen(buildParams(false));
+      setResumen(data);
+    } catch {
+      setResumen({ total: 0, activas: 0 });
+    }
+  }, [searchTerm, statusFilter, productoFilter, periodoFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCampanias();
+      loadResumen();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [loadCampanias, loadResumen]);
 
   const loadCatalogos = async () => {
     try {
@@ -59,35 +123,12 @@ export default function CampaignsPage() {
     }
   };
 
-  const loadCampanias = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const params: Record<string, string> = {};
-      if (searchTerm) params.nombre = searchTerm;
-      if (statusFilter) params.estado = statusFilter;
-      if (productoFilter) params.productoId = productoFilter;
-      if (periodoFilter) params.periodoId = periodoFilter;
-
-      const response = await campaniasApi.listar(params);
-      setCampanias(response.content || []);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar campañas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = () => {
-    loadCampanias();
-  };
-
   const handleResetFilters = () => {
     setSearchTerm('');
     setStatusFilter('');
     setProductoFilter('');
     setPeriodoFilter('');
-    loadCampanias();
+    setCurrentPage(1);
   };
 
   const getEstadoStatus = (estado: string): 'active' | 'inactive' | 'completed' | 'pending' => {
@@ -96,9 +137,6 @@ export default function CampaignsPage() {
     if (estado === 'PLANIFICADA') return 'pending';
     return 'inactive';
   };
-
-  const totalCampanias = campanias.length;
-  const activeCampanias = campanias.filter((c) => c.estado === 'ACTIVA').length;
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Campañas Comerciales' }]}>
@@ -126,8 +164,11 @@ export default function CampaignsPage() {
                   <Input
                     placeholder="Buscar por nombre..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && setCurrentPage(1)}
                     className="pl-10 border border-slate-300 bg-white rounded-md shadow-sm"
                   />
                 </div>
@@ -135,7 +176,10 @@ export default function CampaignsPage() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Período</label>
-                <Select value={periodoFilter || 'all'} onValueChange={(val) => setPeriodoFilter(val === 'all' ? '' : val)}>
+                <Select value={periodoFilter || 'all'} onValueChange={(val) => {
+                  setPeriodoFilter(val === 'all' ? '' : val);
+                  setCurrentPage(1);
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los períodos" />
                   </SelectTrigger>
@@ -152,7 +196,10 @@ export default function CampaignsPage() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Producto</label>
-                <Select value={productoFilter || 'all'} onValueChange={(val) => setProductoFilter(val === 'all' ? '' : val)}>
+                <Select value={productoFilter || 'all'} onValueChange={(val) => {
+                  setProductoFilter(val === 'all' ? '' : val);
+                  setCurrentPage(1);
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los productos" />
                   </SelectTrigger>
@@ -169,7 +216,10 @@ export default function CampaignsPage() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Estado</label>
-                <Select value={statusFilter || 'all'} onValueChange={(val) => setStatusFilter(val === 'all' ? '' : val)}>
+                <Select value={statusFilter || 'all'} onValueChange={(val) => {
+                  setStatusFilter(val === 'all' ? '' : val);
+                  setCurrentPage(1);
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los estados" />
                   </SelectTrigger>
@@ -184,13 +234,12 @@ export default function CampaignsPage() {
               </div>
 
               <div className="flex items-end gap-2">
-                <Button onClick={handleSearch} className="w-full">Buscar</Button>
+                <Button variant="outline" size="sm" className="gap-2 w-full" onClick={handleResetFilters}>
+                  <RotateCcw className="w-4 h-4" />
+                  Limpiar filtros
+                </Button>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="gap-2 w-fit" onClick={handleResetFilters}>
-              <RotateCcw className="w-4 h-4" />
-              Limpiar filtros
-            </Button>
           </div>
         </Card>
 
@@ -198,17 +247,17 @@ export default function CampaignsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
               <p className="text-sm text-muted-foreground">Total de Campañas</p>
-              <p className="text-2xl font-bold text-foreground">{totalCampanias}</p>
+              <p className="text-2xl font-bold text-foreground">{resumen.total}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Campañas Activas</p>
-              <p className="text-2xl font-bold text-foreground">{activeCampanias}</p>
+              <p className="text-2xl font-bold text-foreground">{resumen.activas}</p>
             </div>
           </div>
         </Card>
 
         <Card className="p-6">
-          {loading ? (
+          {loading && campanias.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
@@ -264,6 +313,18 @@ export default function CampaignsPage() {
                   )}
                 </tbody>
               </table>
+
+              <DataTablePagination
+                page={currentPage}
+                pageCount={totalPages}
+                totalItems={totalElements}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+              />
             </div>
           )}
         </Card>

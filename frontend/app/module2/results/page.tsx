@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/bi/status-badge';
-import { cargasApi } from '@/lib/api';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
+import { cargasApi, catalogosApi } from '@/lib/api';
 import { Download, Search, Filter, AlertCircle, Loader2 } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Select,
@@ -37,6 +38,19 @@ interface PaginatedResponse {
   size: number;
 }
 
+interface TipoCarga {
+  id: number;
+  codigo: string;
+  nombre: string;
+}
+
+interface ResumenResponse {
+  publicadas: number;
+  totalRegistros: number;
+  totalRegValidos: number;
+  totalRegInvalidos: number;
+}
+
 const TIPO_CODIGO_A_FILTRO: Record<string, string> = {
   CAMPANIAS: 'campañas',
   CLIENTES: 'clientes',
@@ -45,24 +59,62 @@ const TIPO_CODIGO_A_FILTRO: Record<string, string> = {
 
 export default function ConsultaResultadosPage() {
   const [cargas, setCargas] = useState<CargaItem[]>([]);
+  const [tiposCarga, setTiposCarga] = useState<TipoCarga[]>([]);
+  const [resumen, setResumen] = useState<ResumenResponse>({
+    publicadas: 0,
+    totalRegistros: 0,
+    totalRegValidos: 0,
+    totalRegInvalidos: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('');
   const [estadoFilter, setEstadoFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  useEffect(() => {
+    loadTiposCarga();
+  }, []);
 
   useEffect(() => {
     loadCargas();
-  }, []);
+    loadResumen();
+  }, [currentPage, pageSize, searchTerm, tipoFilter, estadoFilter]);
+
+  const loadTiposCarga = async () => {
+    try {
+      const data = await catalogosApi.listarTiposCarga();
+      setTiposCarga(data || []);
+    } catch {
+      setTiposCarga([]);
+    }
+  };
+
+  const buildParams = (includePagination: boolean): Record<string, string> => {
+    const tipoCargaId = getTipoCargaId(tipoFilter);
+    const params: Record<string, string> = {};
+    if (includePagination) {
+      params.page = String(currentPage - 1);
+      params.size = String(pageSize);
+    }
+    if (tipoCargaId) params.tipoCargaId = tipoCargaId;
+    if (estadoFilter) params.estados = estadoFilter.toUpperCase();
+    if (searchTerm.trim()) params.search = searchTerm.trim();
+    return params;
+  };
 
   const loadCargas = async () => {
     try {
       setLoading(true);
       setError('');
-      const data: PaginatedResponse = await cargasApi.listar({ size: '1000' });
+      const data: PaginatedResponse = await cargasApi.listar(buildParams(true));
       setCargas(data.content || []);
+      setTotalElements(data.totalElements || 0);
+      setTotalPages(data.totalPages || 0);
     } catch (err: any) {
       setError(err.message || 'Error al cargar resultados');
     } finally {
@@ -70,20 +122,19 @@ export default function ConsultaResultadosPage() {
     }
   };
 
-  const filteredProcesos = useMemo(() => {
-    return cargas.filter((proceso) => {
-      const matchesSearch =
-        proceso.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (proceso.archivo?.nombreArchivo || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesTipo = !tipoFilter || (TIPO_CODIGO_A_FILTRO[proceso.tipoCarga?.codigo || ''] === tipoFilter);
-      const matchesEstado = !estadoFilter || (proceso.estadoCarga?.codigo || '').toLowerCase() === estadoFilter;
-      return matchesSearch && matchesTipo && matchesEstado;
-    });
-  }, [cargas, searchTerm, tipoFilter, estadoFilter]);
+  const loadResumen = async () => {
+    try {
+      const data: ResumenResponse = await cargasApi.resumen(buildParams(false));
+      setResumen(data);
+    } catch {
+      setResumen({ publicadas: 0, totalRegistros: 0, totalRegValidos: 0, totalRegInvalidos: 0 });
+    }
+  };
 
-  const totalPages = Math.ceil(filteredProcesos.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProcesos = filteredProcesos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const getTipoCargaId = (filtro: string) => {
+    const tipo = tiposCarga.find((t) => TIPO_CODIGO_A_FILTRO[t.codigo] === filtro);
+    return tipo ? String(tipo.id) : '';
+  };
 
   const handleResetFilters = () => {
     setSearchTerm('');
@@ -124,7 +175,7 @@ export default function ConsultaResultadosPage() {
     }
   };
 
-  if (loading) {
+  if (loading && cargas.length === 0) {
     return (
       <MainLayout breadcrumbs={[{ label: 'Captura Digital', href: '/module2' }, { label: 'Consulta de Resultados y Errores' }]}>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -165,25 +216,25 @@ export default function ConsultaResultadosPage() {
           <Card className="p-6">
             <p className="text-sm text-muted-foreground">Cargas Publicadas</p>
             <p className="text-3xl font-bold text-green-600 mt-2">
-              {cargas.filter(p => p.estadoCarga?.codigo === 'PUBLICADA').length}
+              {resumen.publicadas.toLocaleString()}
             </p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-muted-foreground">Total Procesados</p>
             <p className="text-3xl font-bold text-blue-600 mt-2">
-              {cargas.reduce((sum, p) => sum + (p.totalRegistros || 0), 0).toLocaleString()}
+              {resumen.totalRegistros.toLocaleString()}
             </p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-muted-foreground">Registros Válidos</p>
             <p className="text-3xl font-bold text-green-600 mt-2">
-              {cargas.reduce((sum, p) => sum + (p.totalRegValidos || 0), 0).toLocaleString()}
+              {resumen.totalRegValidos.toLocaleString()}
             </p>
           </Card>
           <Card className="p-6">
             <p className="text-sm text-muted-foreground">Errores Totales</p>
             <p className="text-3xl font-bold text-red-600 mt-2">
-              {cargas.reduce((sum, p) => sum + (p.totalRegInvalidos || 0), 0).toLocaleString()}
+              {resumen.totalRegInvalidos.toLocaleString()}
             </p>
           </Card>
         </div>
@@ -257,7 +308,7 @@ export default function ConsultaResultadosPage() {
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Cargas Ejecutadas</h3>
-            <p className="text-sm text-muted-foreground">{filteredProcesos.length} registros</p>
+            <p className="text-sm text-muted-foreground">{totalElements} registros</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -273,8 +324,8 @@ export default function ConsultaResultadosPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProcesos.length > 0 ? (
-                  paginatedProcesos.map((proceso) => {
+                {cargas.length > 0 ? (
+                  cargas.map((proceso) => {
                     const badge = getEstadoBadge(proceso.estadoCarga?.codigo);
                     return (
                       <tr key={proceso.id} className="border-b border-border hover:bg-secondary/30">
@@ -307,47 +358,17 @@ export default function ConsultaResultadosPage() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex flex-col items-start gap-4 mt-6 pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProcesos.length)} de {filteredProcesos.length} cargas
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                >
-                  Anterior
-                </Button>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const page = Math.max(1, currentPage - 2) + i;
-                    return page <= totalPages ? (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    ) : null;
-                  })}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTablePagination
+            page={currentPage}
+            pageCount={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </Card>
 
         <Card className="p-6">

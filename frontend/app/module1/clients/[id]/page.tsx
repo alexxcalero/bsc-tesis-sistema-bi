@@ -4,11 +4,20 @@ import { MainLayout } from '@/components/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bi/status-badge';
-import { clientesApi } from '@/lib/api';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
+import { clientesApi, catalogosApi } from '@/lib/api';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface Cliente360 {
   cliente: {
@@ -24,24 +33,86 @@ interface Cliente360 {
     agencia?: { nombre: string };
     tipoCliente?: { nombre: string };
   };
-  campanias: any[];
-  ofertas: any[];
+}
+
+interface CampaniaItem {
+  id: number;
+  codigo: string;
+  nombre: string;
+  estado: string;
+  periodo?: { id: number; nombre: string };
+  producto?: { id: number; nombre: string };
+}
+
+interface OfertaItem {
+  id: number;
+  monto: number;
+  tasa?: number;
+  fechaOferta: string;
+  estado: string;
+  campaniaNombre?: string;
+}
+
+interface PaginatedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
 }
 
 export default function ClientDetailPage() {
   const params = useParams();
   const clienteId = params.id as string;
+
   const [data, setData] = useState<Cliente360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [periodos, setPeriodos] = useState<{ id: number; nombre: string }[]>([]);
+  const [productos, setProductos] = useState<{ id: number; nombre: string }[]>([]);
+
+  const [campanias, setCampanias] = useState<CampaniaItem[]>([]);
+  const [campaniaPage, setCampaniaPage] = useState(1);
+  const [campaniaPageSize, setCampaniaPageSize] = useState(5);
+  const [campaniaTotalElements, setCampaniaTotalElements] = useState(0);
+  const [campaniaTotalPages, setCampaniaTotalPages] = useState(0);
+  const [campaniaEstadoFilter, setCampaniaEstadoFilter] = useState('');
+  const [campaniaPeriodoFilter, setCampaniaPeriodoFilter] = useState('');
+  const [campaniaProductoFilter, setCampaniaProductoFilter] = useState('');
+
+  const [ofertas, setOfertas] = useState<OfertaItem[]>([]);
+  const [ofertaPage, setOfertaPage] = useState(1);
+  const [ofertaPageSize, setOfertaPageSize] = useState(5);
+  const [ofertaTotalElements, setOfertaTotalElements] = useState(0);
+  const [ofertaTotalPages, setOfertaTotalPages] = useState(0);
+  const [ofertaEstadoFilter, setOfertaEstadoFilter] = useState('');
+  const [ofertaMontoDesde, setOfertaMontoDesde] = useState('');
+  const [ofertaMontoHasta, setOfertaMontoHasta] = useState('');
+
   useEffect(() => {
     loadCliente360();
+    loadCatalogos();
   }, [clienteId]);
+
+  const loadCatalogos = async () => {
+    try {
+      const [periodosRes, productosRes] = await Promise.all([
+        catalogosApi.listarPeriodos(),
+        catalogosApi.listarProductos(),
+      ]);
+      setPeriodos(periodosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
+      setProductos(productosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
+    } catch {
+      setPeriodos([]);
+      setProductos([]);
+    }
+  };
 
   const loadCliente360 = async () => {
     try {
       setLoading(true);
+      setError('');
       const response = await clientesApi.detalle360(clienteId);
       setData(response);
     } catch (err: any) {
@@ -49,6 +120,86 @@ export default function ClientDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildCampaniaParams = (): Record<string, string> => {
+    const params: Record<string, string> = {
+      page: String(campaniaPage - 1),
+      size: String(campaniaPageSize),
+    };
+    if (campaniaEstadoFilter) params.estado = campaniaEstadoFilter;
+    if (campaniaPeriodoFilter) params.periodoId = campaniaPeriodoFilter;
+    if (campaniaProductoFilter) params.productoId = campaniaProductoFilter;
+    return params;
+  };
+
+  const loadCampanias = useCallback(async () => {
+    try {
+      const response: PaginatedResponse<CampaniaItem> = await clientesApi.listarCampanias(clienteId, buildCampaniaParams());
+      setCampanias(response.content || []);
+      setCampaniaTotalElements(response.totalElements || 0);
+      setCampaniaTotalPages(response.totalPages || 0);
+    } catch (err: any) {
+      console.error('Error cargando campañas', err);
+    }
+  }, [clienteId, campaniaPage, campaniaPageSize, campaniaEstadoFilter, campaniaPeriodoFilter, campaniaProductoFilter]);
+
+  const buildOfertaParams = (): Record<string, string> => {
+    const params: Record<string, string> = {
+      page: String(ofertaPage - 1),
+      size: String(ofertaPageSize),
+    };
+    if (ofertaEstadoFilter) params.estado = ofertaEstadoFilter;
+    if (ofertaMontoDesde) params.montoDesde = ofertaMontoDesde;
+    if (ofertaMontoHasta) params.montoHasta = ofertaMontoHasta;
+    return params;
+  };
+
+  const loadOfertas = useCallback(async () => {
+    try {
+      const response: PaginatedResponse<OfertaItem> = await clientesApi.listarOfertas(clienteId, buildOfertaParams());
+      setOfertas(response.content || []);
+      setOfertaTotalElements(response.totalElements || 0);
+      setOfertaTotalPages(response.totalPages || 0);
+    } catch (err: any) {
+      console.error('Error cargando ofertas', err);
+    }
+  }, [clienteId, ofertaPage, ofertaPageSize, ofertaEstadoFilter, ofertaMontoDesde, ofertaMontoHasta]);
+
+  useEffect(() => {
+    if (!clienteId) return;
+    loadCampanias();
+  }, [loadCampanias]);
+
+  useEffect(() => {
+    if (!clienteId) return;
+    loadOfertas();
+  }, [loadOfertas]);
+
+  const resetCampaniaFilters = () => {
+    setCampaniaEstadoFilter('');
+    setCampaniaPeriodoFilter('');
+    setCampaniaProductoFilter('');
+    setCampaniaPage(1);
+  };
+
+  const resetOfertaFilters = () => {
+    setOfertaEstadoFilter('');
+    setOfertaMontoDesde('');
+    setOfertaMontoHasta('');
+    setOfertaPage(1);
+  };
+
+  const getEstadoStatus = (estado: string): 'active' | 'inactive' | 'completed' | 'pending' => {
+    if (estado === 'ACTIVA' || estado === 'ACEPTADA') return 'active';
+    if (estado === 'COMPLETADA') return 'completed';
+    if (estado === 'PLANIFICADA' || estado === 'PENDIENTE') return 'pending';
+    return 'inactive';
+  };
+
+  const formatCurrency = (value?: number) => {
+    if (value === undefined || value === null) return '-';
+    return `$${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   if (loading) {
@@ -74,7 +225,7 @@ export default function ClientDetailPage() {
     );
   }
 
-  const { cliente, campanias, ofertas } = data;
+  const { cliente } = data;
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Cliente 360', href: '/module1/clients' }, { label: cliente.nombreCompleto }]}>
@@ -139,7 +290,61 @@ export default function ClientDetailPage() {
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Historial de Campañas ({campanias?.length || 0})</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Historial de Campañas</h3>
+            <p className="text-sm text-muted-foreground">{campaniaTotalElements} campañas</p>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Select value={campaniaEstadoFilter || 'all'} onValueChange={(val) => {
+              setCampaniaEstadoFilter(val === 'all' ? '' : val);
+              setCampaniaPage(1);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="ACTIVA">Activa</SelectItem>
+                <SelectItem value="COMPLETADA">Completada</SelectItem>
+                <SelectItem value="PLANIFICADA">Planificada</SelectItem>
+                <SelectItem value="INACTIVA">Inactiva</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={campaniaPeriodoFilter || 'all'} onValueChange={(val) => {
+              setCampaniaPeriodoFilter(val === 'all' ? '' : val);
+              setCampaniaPage(1);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {periodos.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={campaniaProductoFilter || 'all'} onValueChange={(val) => {
+              setCampaniaProductoFilter(val === 'all' ? '' : val);
+              setCampaniaPage(1);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Producto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {productos.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" size="sm" onClick={resetCampaniaFilters}>Limpiar</Button>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-border">
@@ -151,13 +356,15 @@ export default function ClientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {campanias?.length > 0 ? (
-                  campanias.map((camp: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border hover:bg-secondary/30">
+                {campanias.length > 0 ? (
+                  campanias.map((camp) => (
+                    <tr key={camp.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="py-3 px-4 font-medium">{camp.nombre}</td>
                       <td className="py-3 px-4 text-muted-foreground">{camp.producto?.nombre || 'N/A'}</td>
                       <td className="py-3 px-4 text-muted-foreground">{camp.periodo?.nombre || 'N/A'}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{camp.estado}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={getEstadoStatus(camp.estado)} label={camp.estado} />
+                      </td>
                     </tr>
                   ))
                 ) : (
@@ -168,10 +375,66 @@ export default function ClientDetailPage() {
               </tbody>
             </table>
           </div>
+
+          <DataTablePagination
+            page={campaniaPage}
+            pageCount={campaniaTotalPages}
+            totalItems={campaniaTotalElements}
+            pageSize={campaniaPageSize}
+            onPageChange={setCampaniaPage}
+            onPageSizeChange={(size) => {
+              setCampaniaPageSize(size);
+              setCampaniaPage(1);
+            }}
+          />
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Historial de Ofertas ({ofertas?.length || 0})</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Historial de Ofertas</h3>
+            <p className="text-sm text-muted-foreground">{ofertaTotalElements} ofertas</p>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Select value={ofertaEstadoFilter || 'all'} onValueChange={(val) => {
+              setOfertaEstadoFilter(val === 'all' ? '' : val);
+              setOfertaPage(1);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="ACTIVA">Activa</SelectItem>
+                <SelectItem value="ACEPTADA">Aceptada</SelectItem>
+                <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+                <SelectItem value="VENCIDA">Vencida</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Input
+              type="number"
+              placeholder="Monto desde"
+              value={ofertaMontoDesde}
+              onChange={(e) => {
+                setOfertaMontoDesde(e.target.value);
+                setOfertaPage(1);
+              }}
+            />
+
+            <Input
+              type="number"
+              placeholder="Monto hasta"
+              value={ofertaMontoHasta}
+              onChange={(e) => {
+                setOfertaMontoHasta(e.target.value);
+                setOfertaPage(1);
+              }}
+            />
+
+            <Button variant="outline" size="sm" onClick={resetOfertaFilters}>Limpiar</Button>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-border">
@@ -184,14 +447,14 @@ export default function ClientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {ofertas?.length > 0 ? (
-                  ofertas.map((oferta: any, idx: number) => (
-                    <tr key={idx} className="border-b border-border hover:bg-secondary/30">
-                      <td className="py-3 px-4 font-medium">{oferta.campaniaNombre || oferta.campania?.nombre || 'N/A'}</td>
-                      <td className="py-3 px-4 text-right font-medium">${Number(oferta.monto).toLocaleString()}</td>
+                {ofertas.length > 0 ? (
+                  ofertas.map((oferta) => (
+                    <tr key={oferta.id} className="border-b border-border hover:bg-secondary/30">
+                      <td className="py-3 px-4 font-medium">{oferta.campaniaNombre || 'N/A'}</td>
+                      <td className="py-3 px-4 text-right font-medium">{formatCurrency(oferta.monto)}</td>
                       <td className="py-3 px-4 text-right text-muted-foreground">{oferta.tasa}%</td>
                       <td className="py-3 px-4">
-                        <StatusBadge status={oferta.estado === 'ACEPTADA' ? 'active' : 'pending'} label={oferta.estado} />
+                        <StatusBadge status={getEstadoStatus(oferta.estado)} label={oferta.estado} />
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">{oferta.fechaOferta}</td>
                     </tr>
@@ -204,6 +467,18 @@ export default function ClientDetailPage() {
               </tbody>
             </table>
           </div>
+
+          <DataTablePagination
+            page={ofertaPage}
+            pageCount={ofertaTotalPages}
+            totalItems={ofertaTotalElements}
+            pageSize={ofertaPageSize}
+            onPageChange={setOfertaPage}
+            onPageSizeChange={(size) => {
+              setOfertaPageSize(size);
+              setOfertaPage(1);
+            }}
+          />
         </Card>
       </div>
     </MainLayout>

@@ -4,9 +4,10 @@ import { MainLayout } from '@/components/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cargasApi } from '@/lib/api';
-import { Search, Filter, Download, Loader2, AlertCircle } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { DataTablePagination } from '@/components/bi/data-table-pagination';
+import { cargasApi, catalogosApi } from '@/lib/api';
+import { Search, Download, Loader2, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -35,6 +36,17 @@ interface PaginatedResponse {
   size: number;
 }
 
+interface TipoCarga {
+  id: number;
+  codigo: string;
+  nombre: string;
+}
+
+interface UsuarioResponsable {
+  id: number;
+  nombreCompleto: string;
+}
+
 const TIPO_CODIGO_A_FILTRO: Record<string, string> = {
   CAMPANIAS: 'campañas',
   CLIENTES: 'clientes',
@@ -45,6 +57,8 @@ const ESTADOS_HISTORIAL = ['PUBLICADA', 'RECHAZADA', 'CON_ERRORES'];
 
 export default function HistoryPage() {
   const [cargas, setCargas] = useState<CargaItem[]>([]);
+  const [tiposCarga, setTiposCarga] = useState<TipoCarga[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioResponsable[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,18 +68,53 @@ export default function HistoryPage() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
 
   useEffect(() => {
     loadCargas();
-  }, []);
+  }, [currentPage, pageSize, searchTerm, tipoFilter, estadoFilter, usuarioFilter, fechaDesde, fechaHasta]);
+
+  const loadCatalogs = async () => {
+    try {
+      const [tipos, usuariosResp] = await Promise.all([
+        catalogosApi.listarTiposCarga(),
+        cargasApi.listarUsuariosResponsables(),
+      ]);
+      setTiposCarga(tipos || []);
+      setUsuarios(usuariosResp || []);
+    } catch {
+      setTiposCarga([]);
+      setUsuarios([]);
+    }
+  };
 
   const loadCargas = async () => {
     try {
       setLoading(true);
       setError('');
-      const data: PaginatedResponse = await cargasApi.listar({ size: '1000' });
+      const tipoCargaId = getTipoCargaId(tipoFilter);
+      const params: Record<string, string> = {
+        page: String(currentPage - 1),
+        size: String(pageSize),
+        estados: ESTADOS_HISTORIAL.join(','),
+      };
+      if (tipoCargaId) params.tipoCargaId = tipoCargaId;
+      if (estadoFilter) params.estados = estadoFilter;
+      if (usuarioFilter) params.usuarioId = usuarioFilter;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (fechaDesde) params.fechaDesde = `${fechaDesde}T00:00:00`;
+      if (fechaHasta) params.fechaHasta = `${fechaHasta}T23:59:59`;
+
+      const data: PaginatedResponse = await cargasApi.listar(params);
       setCargas(data.content || []);
+      setTotalElements(data.totalElements || 0);
+      setTotalPages(data.totalPages || 0);
     } catch (err: any) {
       setError(err.message || 'Error al cargar historial');
     } finally {
@@ -73,35 +122,20 @@ export default function HistoryPage() {
     }
   };
 
-  const completados = useMemo(() => {
-    return cargas.filter((p) => ESTADOS_HISTORIAL.includes(p.estadoCarga?.codigo || ''));
-  }, [cargas]);
+  const getTipoCargaId = (filtro: string) => {
+    const tipo = tiposCarga.find((t) => TIPO_CODIGO_A_FILTRO[t.codigo] === filtro);
+    return tipo ? String(tipo.id) : '';
+  };
 
-  const usuarios = useMemo(() => {
-    return Array.from(new Set(completados.map((p) => p.usuario?.nombreCompleto).filter(Boolean)));
-  }, [completados]);
-
-  const filteredProcesos = useMemo(() => {
-    return completados.filter((proceso) => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch =
-        (proceso.archivo?.nombreArchivo || '').toLowerCase().includes(term) ||
-        proceso.codigo.toLowerCase().includes(term) ||
-        (proceso.usuario?.nombreCompleto || '').toLowerCase().includes(term);
-      const matchesTipo = !tipoFilter || (TIPO_CODIGO_A_FILTRO[proceso.tipoCarga?.codigo || ''] === tipoFilter);
-      const matchesEstado = !estadoFilter || (proceso.estadoCarga?.codigo || '').toLowerCase() === estadoFilter;
-      const matchesUsuario = !usuarioFilter || proceso.usuario?.nombreCompleto === usuarioFilter;
-      const fechaProceso = new Date(proceso.createdAt);
-      const matchesFechaDesde = !fechaDesde || fechaProceso >= new Date(fechaDesde + 'T00:00:00');
-      const matchesFechaHasta = !fechaHasta || fechaProceso <= new Date(fechaHasta + 'T23:59:59');
-
-      return matchesSearch && matchesTipo && matchesEstado && matchesUsuario && matchesFechaDesde && matchesFechaHasta;
-    });
-  }, [completados, searchTerm, tipoFilter, estadoFilter, usuarioFilter, fechaDesde, fechaHasta]);
-
-  const totalPages = Math.ceil(filteredProcesos.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProcesos = filteredProcesos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setTipoFilter('');
+    setEstadoFilter('');
+    setUsuarioFilter('');
+    setFechaDesde('');
+    setFechaHasta('');
+    setCurrentPage(1);
+  };
 
   const getEstadoColor = (codigo?: string) => {
     switch (codigo) {
@@ -147,7 +181,7 @@ export default function HistoryPage() {
     return new Date(dateString).toLocaleString('es-PE');
   };
 
-  if (loading) {
+  if (loading && cargas.length === 0) {
     return (
       <MainLayout breadcrumbs={[{ label: 'Captura Digital', href: '/module2' }, { label: 'Historial y Trazabilidad de Cargas' }]}>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -233,14 +267,14 @@ export default function HistoryPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="publicada">Publicada</SelectItem>
-                    <SelectItem value="rechazada">Rechazada</SelectItem>
-                    <SelectItem value="con_errores">Con Errores</SelectItem>
+                    <SelectItem value="PUBLICADA">Publicada</SelectItem>
+                    <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+                    <SelectItem value="CON_ERRORES">Con Errores</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="w-40">
+              <div className="w-48">
                 <label className="text-xs text-muted-foreground mb-2 block">Usuario Responsable</label>
                 <Select value={usuarioFilter || 'all'} onValueChange={(val) => {
                   setUsuarioFilter(val === 'all' ? '' : val);
@@ -252,8 +286,8 @@ export default function HistoryPage() {
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     {usuarios.map((usuario) => (
-                      <SelectItem key={usuario} value={usuario}>
-                        {usuario}
+                      <SelectItem key={usuario.id} value={String(usuario.id)}>
+                        {usuario.nombreCompleto}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -291,15 +325,7 @@ export default function HistoryPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setSearchTerm('');
-                  setTipoFilter('');
-                  setEstadoFilter('');
-                  setUsuarioFilter('');
-                  setFechaDesde('');
-                  setFechaHasta('');
-                  setCurrentPage(1);
-                }}
+                onClick={handleResetFilters}
               >
                 Limpiar Filtros
               </Button>
@@ -323,8 +349,8 @@ export default function HistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProcesos.length > 0 ? (
-                  paginatedProcesos.map((proceso) => (
+                {cargas.length > 0 ? (
+                  cargas.map((proceso) => (
                     <tr key={proceso.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="py-3 px-4 font-medium">{proceso.codigo}</td>
                       <td className="py-3 px-4 text-muted-foreground">{proceso.archivo?.nombreArchivo || '-'}</td>
@@ -355,73 +381,17 @@ export default function HistoryPage() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex flex-col items-start gap-4 mt-6 pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProcesos.length)} de {filteredProcesos.length} cargas
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                >
-                  Anterior
-                </Button>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {totalPages > 0 && (
-                    <Button
-                      variant={currentPage === 1 ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-8 h-8 p-0"
-                      onClick={() => setCurrentPage(1)}
-                    >
-                      1
-                    </Button>
-                  )}
-                  {currentPage > 3 && totalPages > 6 && (
-                    <span className="text-muted-foreground px-2">...</span>
-                  )}
-                  {Array.from({ length: Math.min(5, totalPages - 1) }, (_, i) => {
-                    const page = Math.max(2, currentPage - 2) + i;
-                    return page < totalPages ? (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    ) : null;
-                  })}
-                  {currentPage < totalPages - 2 && totalPages > 6 && (
-                    <span className="text-muted-foreground px-2">...</span>
-                  )}
-                  {totalPages > 1 && (
-                    <Button
-                      variant={currentPage === totalPages ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-8 h-8 p-0"
-                      onClick={() => setCurrentPage(totalPages)}
-                    >
-                      {totalPages}
-                    </Button>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTablePagination
+            page={currentPage}
+            pageCount={totalPages}
+            totalItems={totalElements}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </Card>
       </div>
     </MainLayout>
