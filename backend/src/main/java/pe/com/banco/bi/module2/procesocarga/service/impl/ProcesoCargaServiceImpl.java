@@ -1,5 +1,8 @@
 package pe.com.banco.bi.module2.procesocarga.service.impl;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +41,7 @@ import pe.com.banco.bi.securitydomain.usuario.entity.Usuario;
 import pe.com.banco.bi.securitydomain.usuario.repository.UsuarioRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,6 +61,9 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
     private final ApplicationEventPublisher eventPublisher;
     private final ProcesoCargaMapper procesoCargaMapper;
     private final CampaniaService campaniaService;
+
+    @PersistenceContext
+    private final EntityManager entityManager;
 
     @Override
     @Transactional
@@ -135,8 +142,7 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
         long publicadas = contarPorEstado(spec, "PUBLICADA");
         long rechazadas = contarPorEstado(spec, "RECHAZADA");
 
-        ProcesoCargaTotales totales = procesoCargaRepository.calcularTotales(tipoCargaId, estados, usuarioId, search, fechaDesde, fechaHasta)
-                .orElse(new ProcesoCargaTotales(0L, 0L, 0L));
+        ProcesoCargaTotales totales = calcularTotalesCriteria(tipoCargaId, estados, usuarioId, search, fechaDesde, fechaHasta);
         Long totalRegistros = totales.totalRegistros();
         Long totalRegValidos = totales.totalRegValidos();
         Long totalRegInvalidos = totales.totalRegInvalidos();
@@ -243,5 +249,60 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
         resultadoCargaRepository.findByProcesoCargaId(proceso.getId())
                 .ifPresent(r -> response.setResultado(procesoCargaMapper.toResultadoResponse(r)));
         return response;
+    }
+
+    private ProcesoCargaTotales calcularTotalesCriteria(Long tipoCargaId, List<String> estados, Long usuarioId,
+                                                        String search, LocalDateTime fechaDesde, LocalDateTime fechaHasta) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+        Root<ProcesoCarga> root = query.from(ProcesoCarga.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+        if (tipoCargaId != null) {
+            predicates.add(cb.equal(root.get("tipoCarga").get("id"), tipoCargaId));
+        }
+        if (estados != null && !estados.isEmpty()) {
+            predicates.add(root.get("estadoCarga").get("codigo").in(estados));
+        }
+        if (usuarioId != null) {
+            predicates.add(cb.equal(root.get("usuario").get("id"), usuarioId));
+        }
+        if (fechaDesde != null) {
+            predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), fechaDesde));
+        }
+        if (fechaHasta != null) {
+            predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), fechaHasta));
+        }
+        if (search != null && !search.isBlank()) {
+            String pattern = "%" + search.toLowerCase() + "%";
+            Predicate codigo = cb.like(cb.lower(root.get("codigo")), pattern);
+            Predicate username = cb.like(cb.lower(root.get("usuario").get("username")), pattern);
+            Predicate primerNombre = cb.like(cb.lower(root.get("usuario").get("primerNombre")), pattern);
+            Predicate apellidoPaterno = cb.like(cb.lower(root.get("usuario").get("apellidoPaterno")), pattern);
+
+            Subquery<Long> subquery = query.subquery(Long.class);
+            Root<ArchivoCarga> archivoRoot = subquery.from(ArchivoCarga.class);
+            subquery.select(cb.literal(1L));
+            subquery.where(
+                    cb.equal(archivoRoot.get("procesoCarga").get("id"), root.get("id")),
+                    cb.like(cb.lower(archivoRoot.get("nombreArchivo")), pattern)
+            );
+
+            predicates.add(cb.or(codigo, username, primerNombre, apellidoPaterno, cb.exists(subquery)));
+        }
+
+        query.where(predicates.toArray(new Predicate[0]));
+
+        Expression<Long> sumTotal = cb.coalesce(cb.sum(root.get("totalRegistros")), 0L);
+        Expression<Long> sumValidos = cb.coalesce(cb.sum(root.get("totalRegValidos")), 0L);
+        Expression<Long> sumInvalidos = cb.coalesce(cb.sum(root.get("totalRegInvalidos")), 0L);
+        query.multiselect(sumTotal, sumValidos, sumInvalidos);
+
+        Object[] result = entityManager.createQuery(query).getSingleResult();
+        return new ProcesoCargaTotales(
+                ((Number) result[0]).longValue(),
+                ((Number) result[1]).longValue(),
+                ((Number) result[2]).longValue()
+        );
     }
 }

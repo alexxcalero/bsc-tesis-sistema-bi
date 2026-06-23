@@ -13,7 +13,10 @@ import pe.com.banco.bi.module1.campania.entity.Campania;
 import pe.com.banco.bi.module1.campania.mapper.CampaniaMapper;
 import pe.com.banco.bi.module1.campania.repository.CampaniaRepository;
 import pe.com.banco.bi.module1.campania.service.CampaniaService;
+import pe.com.banco.bi.module1.cliente.dto.ClienteResponse;
+import pe.com.banco.bi.module1.cliente.entity.Cliente;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResumenResponse;
+import pe.com.banco.bi.module1.oferta.dto.OfertaResumenTotales;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResponse;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
 import pe.com.banco.bi.module1.oferta.mapper.OfertaMapper;
@@ -117,8 +120,9 @@ public class CampaniaServiceImpl implements CampaniaService {
             throw new RuntimeException("Campaña no encontrada");
         }
         Page<Oferta> ofertas;
-        if (search != null && !search.isBlank()) {
-            ofertas = ofertaRepository.findByCampaniaIdAndSearch(campaniaId, search, pageable);
+        String searchPattern = (search == null || search.isBlank()) ? "%" : "%" + search.toLowerCase() + "%";
+        if (!"%".equals(searchPattern)) {
+            ofertas = ofertaRepository.findByCampaniaIdAndSearch(campaniaId, searchPattern, pageable);
         } else {
             ofertas = ofertaRepository.findByCampaniaId(campaniaId, pageable);
         }
@@ -131,10 +135,11 @@ public class CampaniaServiceImpl implements CampaniaService {
         if (!campaniaRepository.existsById(campaniaId)) {
             throw new RuntimeException("Campaña no encontrada");
         }
-        Object[] resultado = ofertaRepository.calcularResumenOfertas(campaniaId, search);
-        long totalOfertas = ((Number) resultado[0]).longValue();
-        long clientesAlcanzados = ((Number) resultado[1]).longValue();
-        BigDecimal montoTotalOfertado = (BigDecimal) resultado[2];
+        String searchPattern = (search == null || search.isBlank()) ? "%" : "%" + search.toLowerCase() + "%";
+        OfertaResumenTotales resultado = ofertaRepository.calcularResumenOfertas(campaniaId, searchPattern);
+        long totalOfertas = resultado.totalOfertas();
+        long clientesAlcanzados = resultado.clientesAlcanzados();
+        BigDecimal montoTotalOfertado = resultado.montoTotalOfertado();
 
         BigDecimal ticketPromedio = totalOfertas == 0
                 ? BigDecimal.ZERO

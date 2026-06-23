@@ -68,7 +68,7 @@ public class DashboardService {
         Map<String, BigDecimal> valoresPorMes = resultado.stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
-                        row -> (BigDecimal) row[1],
+                        row -> toBigDecimal(row[1]),
                         (a, b) -> a
                 ));
 
@@ -89,9 +89,22 @@ public class DashboardService {
         return resultado.stream()
                 .map(row -> SerieData.builder()
                         .label((String) row[0])
-                        .valor(((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP).doubleValue())
+                        .valor(toBigDecimal(row[1]).setScale(2, RoundingMode.HALF_UP).doubleValue())
                         .build())
                 .toList();
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (value instanceof Number n) {
+            return BigDecimal.valueOf(n.doubleValue());
+        }
+        return new BigDecimal(value.toString());
     }
 
 }

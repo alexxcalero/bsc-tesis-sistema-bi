@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import pe.com.banco.bi.module1.oferta.dto.OfertaResumenTotales;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
 
 import java.math.BigDecimal;
@@ -22,14 +23,14 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     @Query("""
             SELECT o FROM Oferta o
             WHERE o.campania.id = :campaniaId
-              AND (:search IS NULL OR
-                   LOWER(o.cliente.primerNombre) LIKE LOWER(CONCAT('%', :search, '%')) OR
-                   LOWER(o.cliente.apellidoPaterno) LIKE LOWER(CONCAT('%', :search, '%')) OR
-                   LOWER(o.cliente.numeroDocumento) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND (LENGTH(:searchPattern) = 1 OR
+                   LOWER(o.cliente.primerNombre) LIKE :searchPattern OR
+                   LOWER(o.cliente.apellidoPaterno) LIKE :searchPattern OR
+                   LOWER(o.cliente.numeroDocumento) LIKE :searchPattern)
             """)
     Page<Oferta> findByCampaniaIdAndSearch(@Param("campaniaId") Long campaniaId,
-                                            @Param("search") String search,
-                                            Pageable pageable);
+                                             @Param("searchPattern") String searchPattern,
+                                             Pageable pageable);
 
     @Query("""
             SELECT o FROM Oferta o
@@ -49,16 +50,18 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     List<Oferta> findByClienteId(Long clienteId);
 
     @Query("""
-            SELECT COUNT(o), COUNT(DISTINCT o.cliente.id), COALESCE(SUM(o.monto), 0)
+            SELECT new pe.com.banco.bi.module1.oferta.dto.OfertaResumenTotales(
+                COUNT(o), COUNT(DISTINCT o.cliente.id), COALESCE(SUM(o.monto), 0)
+            )
             FROM Oferta o
             WHERE o.campania.id = :campaniaId
-              AND (:search IS NULL OR
-                   LOWER(o.cliente.primerNombre) LIKE LOWER(CONCAT('%', :search, '%')) OR
-                   LOWER(o.cliente.apellidoPaterno) LIKE LOWER(CONCAT('%', :search, '%')) OR
-                   LOWER(o.cliente.numeroDocumento) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND (LENGTH(:searchPattern) = 1 OR
+                   LOWER(o.cliente.primerNombre) LIKE :searchPattern OR
+                   LOWER(o.cliente.apellidoPaterno) LIKE :searchPattern OR
+                   LOWER(o.cliente.numeroDocumento) LIKE :searchPattern)
             """)
-    Object[] calcularResumenOfertas(@Param("campaniaId") Long campaniaId,
-                                     @Param("search") String search);
+    OfertaResumenTotales calcularResumenOfertas(@Param("campaniaId") Long campaniaId,
+                                                 @Param("searchPattern") String searchPattern);
 
     @Query("SELECT AVG(o.monto) FROM Oferta o WHERE o.estado = :estado")
     Double averageMontoByEstado(@Param("estado") String estado);
