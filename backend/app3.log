@@ -1,0 +1,105 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< pe.com.banco.bi:sistema-bi >---------------------
+[INFO] Building sistema-bi 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.0:run (default-cli) > test-compile @ sistema-bi >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ sistema-bi ---
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] Copying 12 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.0:compile (default-compile) @ sistema-bi ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ sistema-bi ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ sistema-bi ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 2 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] 
+[INFO] <<< spring-boot:3.5.0:run (default-cli) < test-compile @ sistema-bi <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.0:run (default-cli) @ sistema-bi ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.0)
+
+2026-06-29T03:05:24.499-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] pe.com.banco.bi.SistemaBiApplication     : Starting SistemaBiApplication using Java 21.0.2 with PID 29436 (E:\Documentos\SistemaBI\backend\target\classes started by alex in E:\Documentos\SistemaBI\backend)
+2026-06-29T03:05:24.501-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] pe.com.banco.bi.SistemaBiApplication     : No active profile set, falling back to 1 default profile: "default"
+2026-06-29T03:05:24.537-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2026-06-29T03:05:24.537-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2026-06-29T03:05:25.257-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-29T03:05:25.356-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 93 ms. Found 24 JPA repository interfaces.
+2026-06-29T03:05:25.928-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-06-29T03:05:25.939-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-29T03:05:25.939-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.41]
+2026-06-29T03:05:25.971-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-06-29T03:05:25.971-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1434 ms
+2026-06-29T03:05:26.155-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-29T03:05:26.297-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@15085190
+2026-06-29T03:05:26.298-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-29T03:05:26.317-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/bi_banco (PostgreSQL 18.3)
+2026-06-29T03:05:26.326-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] o.f.c.internal.database.base.Database    : Flyway upgrade recommended: PostgreSQL 18.3 is newer than this version of Flyway and support has not been tested. The latest supported version of PostgreSQL is 17.
+2026-06-29T03:05:26.360-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.f.core.internal.command.DbValidate     : Successfully validated 12 migrations (execution time 00:00.025s)
+2026-06-29T03:05:26.406-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 12
+2026-06-29T03:05:26.408-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-06-29T03:05:26.505-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-06-29T03:05:26.560-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.15.Final
+2026-06-29T03:05:26.586-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-06-29T03:05:26.803-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-29T03:05:26.857-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-06-29T03:05:26.869-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 18.3
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-29T03:05:27.859-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-29T03:05:27.894-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-29T03:05:28.418-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-06-29T03:05:30.005-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] eAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-06-29T03:05:30.005-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-06-29T03:05:30.117-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-06-29T03:05:30.755-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] o.s.b.a.h2.H2ConsoleAutoConfiguration    : H2 console available at '/h2-console'. Database available at 'jdbc:postgresql://localhost:5432/bi_banco'
+2026-06-29T03:05:30.826-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] o.s.b.d.a.OptionalLiveReloadServer       : Unable to start LiveReload server
+2026-06-29T03:05:30.850-05:00  WARN 29436 --- [sistema-bi] [  restartedMain] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
+2026-06-29T03:05:30.853-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-06-29T03:05:30.855-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-06-29T03:05:30.857-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-06-29T03:05:30.870-05:00  INFO 29436 --- [sistema-bi] [  restartedMain] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-06-29T03:05:30.883-05:00 ERROR 29436 --- [sistema-bi] [  restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Web server failed to start. Port 8080 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 8080 or configure this application to listen on another port.
+
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  9.705 s
+[INFO] Finished at: 2026-06-29T03:05:30-05:00
+[INFO] ------------------------------------------------------------------------
