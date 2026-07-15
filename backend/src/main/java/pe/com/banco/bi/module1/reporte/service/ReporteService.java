@@ -8,11 +8,15 @@ import pe.com.banco.bi.module1.campania.entity.Campania;
 import pe.com.banco.bi.module1.campania.repository.CampaniaRepository;
 import pe.com.banco.bi.module1.cliente.entity.Cliente;
 import pe.com.banco.bi.module1.cliente.repository.ClienteRepository;
+import pe.com.banco.bi.module1.dashboard.dto.DashboardFiltroRequest;
+import pe.com.banco.bi.module1.dashboard.dto.DashboardResponse;
+import pe.com.banco.bi.module1.dashboard.service.DashboardService;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
 import pe.com.banco.bi.module1.oferta.repository.OfertaRepository;
-import pe.com.banco.bi.module1.reporte.dto.ReporteFiltroRequest;
+import pe.com.banco.bi.module1.reporte.dto.ReporteFiltroResponse;
 import pe.com.banco.bi.module1.reporte.dto.ReporteResponse;
-import pe.com.banco.bi.module1.reporte.enums.ReporteCatalogo;
+import pe.com.banco.bi.module1.reporte.entity.Reporte;
+import pe.com.banco.bi.module1.reporte.repository.ReporteRepository;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -20,7 +24,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,36 +36,49 @@ public class ReporteService {
     private final CampaniaRepository campaniaRepository;
     private final OfertaRepository ofertaRepository;
     private final ClienteRepository clienteRepository;
+    private final ReporteRepository reporteRepository;
+    private final DashboardService dashboardService;
 
     public List<ReporteResponse> listarReportes() {
-        return Arrays.stream(ReporteCatalogo.values())
-                .map(r -> ReporteResponse.builder()
-                        .id(r.getId())
-                        .nombre(r.getNombre())
-                        .descripcion(r.getDescripcion())
-                        .filtros(r.getFiltros())
-                        .formato("csv")
-                        .build())
+        return reporteRepository.findAllByActivoTrueOrderByNombre().stream()
+                .map(this::toResponse)
                 .toList();
     }
 
+    private ReporteResponse toResponse(Reporte reporte) {
+        return ReporteResponse.builder()
+                .id(reporte.getCodigo())
+                .nombre(reporte.getNombre())
+                .descripcion(reporte.getDescripcion())
+                .formato(reporte.getFormato())
+                .icono(reporte.getIcono())
+                .filtros(reporte.getFiltros().stream()
+                        .map(f -> ReporteFiltroResponse.builder()
+                                .codigo(f.getCodigo())
+                                .nombre(f.getNombre())
+                                .tipo(f.getTipo())
+                                .catalogoEndpoint(f.getCatalogoEndpoint())
+                                .orden(f.getOrden())
+                                .build())
+                        .toList())
+                .build();
+    }
+
     @Transactional(readOnly = true)
-    public InputStream generarReporte(String reporteId, ReporteFiltroRequest request) {
-        ReporteCatalogo reporte = ReporteCatalogo.buscarPorId(reporteId)
+    public InputStream generarReporte(String reporteId, Map<String, String> filtros) {
+        Reporte reporte = reporteRepository.findByCodigoIgnoreCase(reporteId)
                 .orElseThrow(() -> new RuntimeException("Reporte no encontrado: " + reporteId));
 
-        return switch (reporte) {
-            case CAMPANIAS -> generarReporteCampanias(request.getFiltros());
-            case OFERTAS -> generarReporteOfertas(request.getFiltros());
-            case CLIENTES -> generarReporteClientes(request.getFiltros());
+        return switch (reporte.getCodigo()) {
+            case "campanias" -> generarReporteCampanias(filtros);
+            case "ofertas" -> generarReporteOfertas(filtros);
+            case "clientes" -> generarReporteClientes(filtros);
+            case "dashboard" -> generarReporteDashboard(filtros);
+            default -> throw new RuntimeException("Generador no implementado para: " + reporteId);
         };
     }
 
     private InputStream generarReporteCampanias(Map<String, String> filtros) {
-        // TODO: extender a PDF usando JasperReports/OpenPDF.
-        // Para PDF, crear una plantilla .jrxml (JasperReports) o construir el documento
-        // con OpenPDF, incluyendo logo, titulo, filtros aplicados, tabla de datos y totales.
-
         List<Campania> campanias = campaniaRepository.findAll().stream()
                 .filter(c -> filtroLong(filtros.get("periodoId"), c.getPeriodo() != null ? c.getPeriodo().getId() : null))
                 .filter(c -> filtroLong(filtros.get("productoId"), c.getProducto() != null ? c.getProducto().getId() : null))
@@ -102,7 +118,7 @@ public class ReporteService {
         }
 
         sb.append("\n");
-        sb.append(",,,,,TOTALES,,");
+        sb.append(",,,,,,TOTALES,,");
         long totalClientesGeneral = campanias.stream()
                 .mapToLong(c -> todasLasOfertas.stream()
                         .filter(o -> o.getCampania().getId().equals(c.getId()))
@@ -123,10 +139,6 @@ public class ReporteService {
     }
 
     private InputStream generarReporteOfertas(Map<String, String> filtros) {
-        // TODO: extender a PDF usando JasperReports/OpenPDF.
-        // Para PDF, crear una plantilla .jrxml (JasperReports) o construir el documento
-        // con OpenPDF, incluyendo logo, titulo, filtros aplicados, tabla de datos y totales.
-
         LocalDate fechaDesde = parseFecha(filtros.get("fechaDesde"));
         LocalDate fechaHasta = parseFecha(filtros.get("fechaHasta"));
 
@@ -177,10 +189,6 @@ public class ReporteService {
     }
 
     private InputStream generarReporteClientes(Map<String, String> filtros) {
-        // TODO: extender a PDF usando JasperReports/OpenPDF.
-        // Para PDF, crear una plantilla .jrxml (JasperReports) o construir el documento
-        // con OpenPDF, incluyendo logo, titulo, filtros aplicados, tabla de datos y totales.
-
         List<Cliente> clientes = clienteRepository.findAll().stream()
                 .filter(c -> filtroLong(filtros.get("segmentoId"), c.getSegmento() != null ? c.getSegmento().getId() : null))
                 .filter(c -> filtroLong(filtros.get("zonaId"), c.getZona() != null ? c.getZona().getId() : null))
@@ -233,6 +241,48 @@ public class ReporteService {
 
         sb.append("\n");
         sb.append(",,,TOTALES,").append(ofertasActivasGeneral).append(",").append(montoTotalGeneral).append(",\n");
+
+        return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private InputStream generarReporteDashboard(Map<String, String> filtros) {
+        DashboardFiltroRequest dashboardFiltros = DashboardFiltroRequest.builder()
+                .fechaDesde(parseFecha(filtros.get("fechaDesde")))
+                .fechaHasta(parseFecha(filtros.get("fechaHasta")))
+                .estadoCampania(filtros.get("estadoCampania"))
+                .productoId(parseLong(filtros.get("productoId")))
+                .periodoId(parseLong(filtros.get("periodoId")))
+                .segmentoId(parseLong(filtros.get("segmentoId")))
+                .build();
+
+        DashboardResponse data = dashboardService.obtenerDashboard(dashboardFiltros);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Resumen Ejecutivo\n\n");
+        sb.append("Indicador,Valor\n");
+        sb.append(String.format("Cantidad de Campañas,%d\n", data.getKpis().getTotalCampanias()));
+        sb.append(String.format("Cantidad de Clientes,%d\n", data.getKpis().getTotalClientes()));
+        sb.append(String.format("Cantidad de Ofertas,%d\n", data.getKpis().getTotalOfertas()));
+        sb.append(String.format("Monto Total Ofertado,%.2f\n", data.getKpis().getMontoTotalOfertado()));
+        sb.append(String.format("Ticket Promedio,%.2f\n", data.getKpis().getTicketPromedio()));
+        sb.append("\n");
+
+        sb.append("Campañas por Producto\n");
+        sb.append("Producto,Cantidad\n");
+        data.getCampaniasPorProducto().forEach(s ->
+                sb.append(String.format("%s,%.0f\n", escaparCsv(s.getLabel()), s.getValor())));
+        sb.append("\n");
+
+        sb.append("Evolución de Monto Ofertado\n");
+        sb.append("Mes,Monto\n");
+        data.getEvolucionMonto().forEach(s ->
+                sb.append(String.format("%s,%.2f\n", escaparCsv(s.getLabel()), s.getValor())));
+        sb.append("\n");
+
+        sb.append("Ticket Promedio por Segmento\n");
+        sb.append("Segmento,Ticket Promedio\n");
+        data.getTicketPromedioPorSegmento().forEach(s ->
+                sb.append(String.format("%s,%.2f\n", escaparCsv(s.getLabel()), s.getValor())));
 
         return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
     }

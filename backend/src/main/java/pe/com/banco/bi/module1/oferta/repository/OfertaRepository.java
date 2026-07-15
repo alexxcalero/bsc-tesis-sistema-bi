@@ -90,4 +90,85 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
             ORDER BY s.nombre
             """)
     List<Object[]> calcularTicketPromedioPorSegmento();
+
+    @Query("""
+            SELECT
+                COUNT(DISTINCT o.campania.id),
+                COUNT(DISTINCT o.cliente.id),
+                COUNT(o),
+                COALESCE(SUM(o.monto), 0),
+                COALESCE(AVG(o.monto), 0)
+            FROM Oferta o
+            WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
+              AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
+              AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
+              AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
+              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
+            """)
+    Object[] calcularKpisConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
+                                    @Param("fechaHasta") LocalDate fechaHasta,
+                                    @Param("estadoCampania") String estadoCampania,
+                                    @Param("productoId") Long productoId,
+                                    @Param("periodoId") Long periodoId,
+                                    @Param("segmentoId") Long segmentoId);
+
+    @Query("""
+            SELECT o.campania.producto.nombre, COUNT(DISTINCT o.campania.id)
+            FROM Oferta o
+            WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
+              AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
+              AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
+              AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
+              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
+            GROUP BY o.campania.producto.nombre
+            ORDER BY o.campania.producto.nombre
+            """)
+    List<Object[]> countCampaniasByProductoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
+                                                      @Param("fechaHasta") LocalDate fechaHasta,
+                                                      @Param("estadoCampania") String estadoCampania,
+                                                      @Param("productoId") Long productoId,
+                                                      @Param("periodoId") Long periodoId,
+                                                      @Param("segmentoId") Long segmentoId);
+
+    @Query("""
+            SELECT FUNCTION('to_char', o.fechaOferta, 'YYYY-MM'), COALESCE(SUM(o.monto), 0)
+            FROM Oferta o
+            WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
+              AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
+              AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
+              AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
+              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
+            GROUP BY FUNCTION('to_char', o.fechaOferta, 'YYYY-MM')
+            ORDER BY FUNCTION('to_char', o.fechaOferta, 'YYYY-MM')
+            """)
+    List<Object[]> calcularEvolucionMontoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
+                                                    @Param("fechaHasta") LocalDate fechaHasta,
+                                                    @Param("estadoCampania") String estadoCampania,
+                                                    @Param("productoId") Long productoId,
+                                                    @Param("periodoId") Long periodoId,
+                                                    @Param("segmentoId") Long segmentoId);
+
+    @Query("""
+            SELECT s.nombre, COALESCE(AVG(o.monto), 0)
+            FROM Oferta o
+            JOIN o.cliente c
+            JOIN c.segmento s
+            WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
+              AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
+              AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
+              AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
+              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:segmentoId IS NULL OR c.segmento.id = :segmentoId)
+            GROUP BY s.nombre
+            ORDER BY s.nombre
+            """)
+    List<Object[]> calcularTicketPromedioPorSegmentoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
+                                                               @Param("fechaHasta") LocalDate fechaHasta,
+                                                               @Param("estadoCampania") String estadoCampania,
+                                                               @Param("productoId") Long productoId,
+                                                               @Param("periodoId") Long periodoId,
+                                                               @Param("segmentoId") Long segmentoId);
 }

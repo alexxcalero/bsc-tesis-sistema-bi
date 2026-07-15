@@ -8,8 +8,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import pe.com.banco.bi.module1.reporte.dto.ReporteFiltroRequest;
 import pe.com.banco.bi.module1.reporte.service.ReporteService;
+
+import java.util.Map;
 import pe.com.banco.bi.security.JwtUtil;
 import pe.com.banco.bi.security.SecurityConfig;
 import pe.com.banco.bi.security.UserDetailsServiceImpl;
@@ -45,7 +46,7 @@ class ReporteControllerTest {
     @WithMockUser(authorities = "REPORTES_CREAR")
     void generar_conPermiso_debeRetornarCsv() throws Exception {
         String csvContent = "Codigo,Nombre\nCAMP-001,Prueba\n";
-        when(reporteService.generarReporte(eq("CAMPANIAS"), any(ReporteFiltroRequest.class)))
+        when(reporteService.generarReporte(eq("campanias"), any(Map.class)))
                 .thenReturn(new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8)));
 
         mockMvc.perform(post("/api/v1/reportes/CAMPANIAS/generar")

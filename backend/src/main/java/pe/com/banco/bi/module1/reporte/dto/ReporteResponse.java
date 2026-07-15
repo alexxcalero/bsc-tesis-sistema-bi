@@ -14,6 +14,7 @@ public class ReporteResponse {
     private String id;
     private String nombre;
     private String descripcion;
-    private List<String> filtros;
+    private List<ReporteFiltroResponse> filtros;
     private String formato;
+    private String icono;
 }

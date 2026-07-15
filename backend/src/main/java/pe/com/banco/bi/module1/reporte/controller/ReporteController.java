@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/reportes")
@@ -33,18 +34,26 @@ public class ReporteController {
     @PreAuthorize("hasAuthority('REPORTES_CREAR')")
     public ResponseEntity<InputStreamResource> generar(
             @PathVariable String id,
+            @RequestParam(name = "formato", defaultValue = "csv") String formato,
             @RequestBody(required = false) ReporteFiltroRequest request) {
 
         if (request == null) {
             request = new ReporteFiltroRequest();
         }
 
-        InputStream csv = reporteService.generarReporte(id, request);
-        String filename = id + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv";
+        String reporteId = id.toLowerCase();
+        Map<String, String> filtros = request.getFiltros() != null ? request.getFiltros() : Map.of();
+        InputStream inputStream = reporteService.generarReporte(reporteId, filtros);
+
+        String extension = "pdf".equalsIgnoreCase(formato) ? "pdf" : "csv";
+        String contentType = "pdf".equalsIgnoreCase(formato)
+                ? "application/pdf"
+                : "text/csv";
+        String filename = reporteId + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + "." + extension;
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(new InputStreamResource(csv));
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(new InputStreamResource(inputStream));
     }
 }
