@@ -170,7 +170,8 @@ export const authApi = {
 };
 
 export const dashboardApi = {
-  getResumen: () => apiFetch<any>('/dashboard/resumen'),
+  getResumen: (params?: Record<string, string>) =>
+    apiFetch<any>(`/dashboard/resumen?${new URLSearchParams(params).toString()}`),
 };
 
 export const campaniasApi = {
@@ -231,8 +232,8 @@ export const cargasApi = {
 
 export const reportesApi = {
   listar: () => apiFetch<any>('/reportes'),
-  generar: (id: string, filtros?: Record<string, string>) =>
-    apiFetchBlob(`/reportes/${id}/generar`, {
+  generar: (id: string, filtros?: Record<string, string>, formato: 'csv' | 'pdf' = 'csv') =>
+    apiFetchBlob(`/reportes/${id}/generar?formato=${formato}`, {
       method: 'POST',
       body: JSON.stringify({ filtros: filtros || {} }),
     }),

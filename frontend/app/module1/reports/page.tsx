@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -11,15 +13,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { catalogosApi, reportesApi } from '@/lib/api';
-import { Download, FileText, BarChart3, TrendingUp, Loader2 } from 'lucide-react';
+import { catalogosApi, reportesApi, dashboardApi } from '@/lib/api';
+import { createPdfDocument, addSummaryCards, addDataTable, savePdf, generateReportFromCsv } from '@/lib/pdf-export';
+import { Download, FileText, BarChart3, TrendingUp, Loader2, FileDown } from 'lucide-react';
+
+interface FiltroConfig {
+  codigo: string;
+  nombre: string;
+  tipo: string;
+  catalogoEndpoint?: string;
+  orden: number;
+}
 
 interface Reporte {
   id: string;
   nombre: string;
   descripcion: string;
-  filtros: string[];
   formato: string;
+  icono?: string;
+  filtros: FiltroConfig[];
 }
 
 const iconMap: Record<string, typeof BarChart3> = {
@@ -28,21 +40,24 @@ const iconMap: Record<string, typeof BarChart3> = {
   clientes: FileText,
 };
 
+const ESTADOS_CAMPANIA = [
+  { value: 'ACTIVA', label: 'Activa' },
+  { value: 'COMPLETADA', label: 'Completada' },
+  { value: 'PLANIFICADA', label: 'Planificada' },
+  { value: 'INACTIVA', label: 'Inactiva' },
+];
+
 export default function ReportsPage() {
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [selectedReport, setSelectedReport] = useState('');
   const [filtros, setFiltros] = useState<Record<string, string>>({});
-  const [productos, setProductos] = useState<{ id: number; nombre: string }[]>([]);
-  const [periodos, setPeriodos] = useState<{ id: number; nombre: string }[]>([]);
-  const [segmentos, setSegmentos] = useState<{ id: number; nombre: string }[]>([]);
-  const [zonas, setZonas] = useState<{ id: number; nombre: string }[]>([]);
-  const [agencias, setAgencias] = useState<{ id: number; nombre: string }[]>([]);
+  const [catalogos, setCatalogos] = useState<Record<string, { id: number; nombre: string }[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     loadReportes();
-    loadCatalogos();
+    loadCatalogosBase();
   }, []);
 
   const loadReportes = async () => {
@@ -55,7 +70,7 @@ export default function ReportsPage() {
     }
   };
 
-  const loadCatalogos = async () => {
+  const loadCatalogosBase = async () => {
     try {
       const [productosRes, periodosRes, segmentosRes, zonasRes, agenciasRes] = await Promise.all([
         catalogosApi.listarProductos(),
@@ -64,11 +79,13 @@ export default function ReportsPage() {
         catalogosApi.listarZonas(),
         catalogosApi.listarAgencias(),
       ]);
-      setProductos(productosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
-      setPeriodos(periodosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
-      setSegmentos(segmentosRes.map((s: any) => ({ id: s.id, nombre: s.nombre })));
-      setZonas(zonasRes.map((z: any) => ({ id: z.id, nombre: z.nombre })));
-      setAgencias(agenciasRes.map((a: any) => ({ id: a.id, nombre: `${a.nombre} (${a.zona?.nombre || ''})` })));
+      setCatalogos({
+        productos: productosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })),
+        periodos: periodosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })),
+        segmentos: segmentosRes.map((s: any) => ({ id: s.id, nombre: s.nombre })),
+        zonas: zonasRes.map((z: any) => ({ id: z.id, nombre: z.nombre })),
+        agencias: agenciasRes.map((a: any) => ({ id: a.id, nombre: `${a.nombre} (${a.zona?.nombre || ''})` })),
+      });
     } catch (err) {
       console.error('Error cargando catálogos', err);
     }
@@ -81,16 +98,18 @@ export default function ReportsPage() {
     setFiltros((prev) => ({ ...prev, [key]: value === 'all' ? '' : value }));
   };
 
-  const handleGenerateReport = async () => {
+  const buildCsvFilename = () => `${selectedReport}_${new Date().toISOString().split('T')[0]}.csv`;
+
+  const handleGenerateCsv = async () => {
     if (!selectedReport) return;
     try {
       setLoading(true);
       setError('');
-      const blob = await reportesApi.generar(selectedReport, filtros);
+      const blob = await reportesApi.generar(selectedReport, filtros, 'csv');
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${selectedReport}_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = buildCsvFilename();
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -102,100 +121,134 @@ export default function ReportsPage() {
     }
   };
 
-  const renderFiltroInput = (filtro: string) => {
-    if (filtro === 'periodoId') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todos los períodos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {periodos.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
+  const handleGeneratePdf = async () => {
+    if (!selectedReport) return;
+    try {
+      setLoading(true);
+      setError('');
+
+      if (selectedReport === 'dashboard') {
+        const data = await dashboardApi.getResumen(filtros);
+        const doc = await createPdfDocument(currentReport?.nombre || 'Reporte', currentReport?.descripcion);
+
+        addSummaryCards(doc, [
+          { label: 'Campañas', value: (data.kpis?.totalCampanias || 0).toLocaleString() },
+          { label: 'Clientes', value: (data.kpis?.totalClientes || 0).toLocaleString() },
+          { label: 'Ofertas', value: (data.kpis?.totalOfertas || 0).toLocaleString() },
+          { label: 'Monto Total', value: `$${((data.kpis?.montoTotalOfertado || 0) / 1000000).toFixed(1)}M` },
+          { label: 'Ticket Promedio', value: `$${((data.kpis?.ticketPromedio || 0) / 1000).toFixed(1)}K` },
+        ]);
+
+        const productoRows = (data.campaniasPorProducto || []).map((item: any) => [item.label, item.valor]);
+        addDataTable(doc, ['Producto', 'Cantidad'], productoRows as (string | number)[][], { title: 'Campañas por Producto' });
+
+        const evolucionRows = (data.evolucionMonto || []).map((item: any) => [item.label, `$${((item.valor || 0) / 1000000).toFixed(1)}M`]);
+        addDataTable(doc, ['Mes', 'Monto Ofertado'], evolucionRows as (string | number)[][], { title: 'Evolución Mensual de Monto' });
+
+        const ticketRows = (data.ticketPromedioPorSegmento || []).map((item: any) => [item.label, `$${(item.valor || 0).toLocaleString()}`]);
+        addDataTable(doc, ['Segmento', 'Ticket Promedio'], ticketRows as (string | number)[][], { title: 'Ticket Promedio por Segmento' });
+
+        if (Object.keys(filtros).length > 0) {
+          const finalY = (doc as any).lastAutoTable?.finalY || 42;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor('#4B5563');
+          doc.text('Filtros Aplicados', 14, finalY + 10);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          let filterY = finalY + 16;
+          Object.entries(filtros).forEach(([key, value]) => {
+            if (value) doc.text(`${key}: ${value}`, 14, filterY);
+            filterY += 5;
+          });
+        }
+
+        savePdf(doc, `${selectedReport}_${new Date().toISOString().split('T')[0]}.pdf`);
+      } else {
+        const csvBlob = await reportesApi.generar(selectedReport, filtros, 'csv');
+        const csvText = await csvBlob.text();
+        await generateReportFromCsv(
+          currentReport?.nombre || 'Reporte',
+          currentReport?.descripcion,
+          csvText,
+          `${selectedReport}_${new Date().toISOString().split('T')[0]}.pdf`
+        );
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al generar PDF');
+    } finally {
+      setLoading(false);
     }
-    if (filtro === 'productoId') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todos los productos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {productos.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (filtro === 'segmentoId') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todos los segmentos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {segmentos.map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (filtro === 'zonaId') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todas las zonas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {zonas.map((z) => (
-              <SelectItem key={z.id} value={String(z.id)}>{z.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (filtro === 'agenciaId') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todas las agencias" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {agencias.map((a) => (
-              <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (filtro === 'estado') {
-      return (
-        <Select value={filtros[filtro] || 'all'} onValueChange={(val) => handleFiltroChange(filtro, val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Todos los estados" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="ACTIVA">Activa</SelectItem>
-            <SelectItem value="COMPLETADA">Completada</SelectItem>
-            <SelectItem value="PLANIFICADA">Planificada</SelectItem>
-            <SelectItem value="INACTIVA">Inactiva</SelectItem>
-          </SelectContent>
-        </Select>
-      );
-    }
-    return null;
   };
+
+  const renderFiltroInput = (filtro: FiltroConfig) => {
+    const value = filtros[filtro.codigo] || '';
+
+    if (filtro.tipo === 'select') {
+      let items: { id: number; nombre: string }[] = [];
+      const codeToCatalogo: Record<string, string> = {
+        productoId: 'productos',
+        periodoId: 'periodos',
+        segmentoId: 'segmentos',
+        zonaId: 'zonas',
+        agenciaId: 'agencias',
+      };
+      const catalogoKey = filtro.catalogoEndpoint?.replace(/^\/catalogos\//, '').replace(/\/$/, '') || codeToCatalogo[filtro.codigo];
+      if (catalogoKey && catalogos[catalogoKey]) {
+        items = catalogos[catalogoKey];
+      } else if (filtro.codigo === 'estado' || filtro.codigo === 'estadoCampania') {
+        return (
+          <Select value={value || 'all'} onValueChange={(val) => handleFiltroChange(filtro.codigo, val)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {ESTADOS_CAMPANIA.map((e) => (
+                <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+      return (
+        <Select value={value || 'all'} onValueChange={(val) => handleFiltroChange(filtro.codigo, val)}>
+          <SelectTrigger>
+            <SelectValue placeholder={`Todos los ${filtro.nombre.toLowerCase()}`} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {items.map((item) => (
+              <SelectItem key={item.id} value={String(item.id)}>{item.nombre}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    if (filtro.tipo === 'date') {
+      return (
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => handleFiltroChange(filtro.codigo, e.target.value)}
+        />
+      );
+    }
+
+    return (
+      <Input
+        type={filtro.tipo === 'number' ? 'number' : 'text'}
+        placeholder={filtro.nombre}
+        value={value}
+        onChange={(e) => handleFiltroChange(filtro.codigo, e.target.value)}
+      />
+    );
+  };
+
+  const formatos = currentReport?.formato?.split(',').map((f) => f.trim()) || [];
+  const showCsv = formatos.includes('csv');
+  const showPdf = formatos.includes('pdf');
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Reportes y Exportación' }]}>
@@ -238,22 +291,38 @@ export default function ReportsPage() {
 
             {currentReport && currentReport.filtros.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {currentReport.filtros.map((filtro) => (
-                  <div key={filtro}>
-                    <label className="block text-sm font-medium text-foreground mb-2 capitalize">
-                      {filtro.replace(/Id$/, '').replace(/([A-Z])/g, ' $1').trim()}
-                    </label>
-                    {renderFiltroInput(filtro)}
-                  </div>
-                ))}
+                {currentReport.filtros
+                  .sort((a, b) => a.orden - b.orden)
+                  .map((filtro) => (
+                    <div key={filtro.codigo}>
+                      <Label className="block text-sm font-medium text-foreground mb-2">
+                        {filtro.nombre}
+                      </Label>
+                      {renderFiltroInput(filtro)}
+                    </div>
+                  ))}
               </div>
             )}
 
-            <div className="flex justify-end pt-4">
-              <Button onClick={handleGenerateReport} className="gap-2" disabled={loading || !selectedReport}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {loading ? 'Generando...' : 'Generar y Descargar CSV'}
-              </Button>
+            <div className="flex justify-end gap-2 pt-4">
+              {showCsv && (
+                <Button onClick={handleGenerateCsv} variant="outline" className="gap-2" disabled={loading || !selectedReport}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Descargar CSV
+                </Button>
+              )}
+              {showPdf && (
+                <Button onClick={handleGeneratePdf} className="gap-2" disabled={loading || !selectedReport}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                  Descargar PDF
+                </Button>
+              )}
+              {!showCsv && !showPdf && (
+                <Button disabled className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Formato no disponible
+                </Button>
+              )}
             </div>
           </div>
         </Card>

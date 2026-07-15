@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { clientesApi, catalogosApi } from '@/lib/api';
+import { createPdfDocument, addSummaryCards, addDataTable, savePdf, formatCurrency as pdfFormatCurrency, formatDate as pdfFormatDate } from '@/lib/pdf-export';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -190,6 +191,66 @@ export default function ClientDetailPage() {
     setOfertaPage(1);
   };
 
+  const handleExport360 = async () => {
+    if (!data) return;
+    const { cliente } = data;
+    const doc = await createPdfDocument('Reporte 360 del Cliente', cliente.nombreCompleto);
+
+    const infoRows = [
+      ['Nombre Completo', cliente.nombreCompleto],
+      ['Tipo de Cliente', cliente.tipoCliente?.nombre || 'N/A'],
+      ['Tipo de Documento', cliente.tipoDocumento?.nombre || 'N/A'],
+      ['Número de Documento', cliente.numeroDocumento],
+      ['Correo', cliente.correo || 'No disponible'],
+      ['Teléfono', cliente.telefono || 'No disponible'],
+      ['Segmento', cliente.segmento?.nombre || 'N/A'],
+      ['Zona', cliente.zona?.nombre || 'N/A'],
+      ['Agencia', cliente.agencia?.nombre || 'N/A'],
+    ];
+
+    addDataTable(doc, ['Campo', 'Valor'], infoRows as (string | number)[][], {
+      title: 'Información General',
+    });
+
+    addSummaryCards(doc, [
+      { label: 'Total Campañas', value: campaniaTotalElements.toLocaleString() },
+      { label: 'Total Ofertas', value: ofertaTotalElements.toLocaleString() },
+      { label: 'Monto Total', value: pdfFormatCurrency(ofertas.reduce((sum, o) => sum + o.monto, 0)) },
+      { label: 'Ticket Promedio', value: pdfFormatCurrency(ofertaTotalElements > 0 ? ofertas.reduce((sum, o) => sum + o.monto, 0) / ofertaTotalElements : 0) },
+    ]);
+
+    const campaniaRows = campanias.map((c) => [
+      c.nombre,
+      c.producto?.nombre || 'N/A',
+      c.periodo?.nombre || 'N/A',
+      c.estado,
+    ]);
+
+    addDataTable(
+      doc,
+      ['Campaña', 'Producto', 'Período', 'Estado'],
+      campaniaRows as (string | number)[][],
+      { title: 'Historial de Campañas' }
+    );
+
+    const ofertaRows = ofertas.map((o) => [
+      o.campaniaNombre || 'N/A',
+      pdfFormatCurrency(o.monto),
+      o.tasa ? `${o.tasa}%` : '-',
+      o.estado,
+      pdfFormatDate(o.fechaOferta),
+    ]);
+
+    addDataTable(
+      doc,
+      ['Campaña', 'Monto', 'Tasa', 'Estado', 'Fecha'],
+      ofertaRows as (string | number)[][],
+      { title: 'Historial de Ofertas' }
+    );
+
+    savePdf(doc, `cliente_360_${cliente.numeroDocumento}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const getEstadoStatus = (estado: string): 'active' | 'inactive' | 'completed' | 'pending' => {
     if (estado === 'ACTIVA' || estado === 'ACEPTADA') return 'active';
     if (estado === 'COMPLETADA') return 'completed';
@@ -245,7 +306,7 @@ export default function ClientDetailPage() {
               <p className="text-muted-foreground">ID: {cliente.id}</p>
             </div>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={handleExport360}>
             <Download className="w-4 h-4" />
             Exportar 360
           </Button>

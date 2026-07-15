@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authApi
         .me()
         .then((usuario) => {
+          localStorage.setItem('bi_user', JSON.stringify(usuario));
           setUser(usuario);
         })
         .catch(() => {
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     const response = await authApi.login(credentials);
     localStorage.setItem('bi_token', response.token);
+    localStorage.setItem('bi_user', JSON.stringify(response.usuario));
     setToken(response.token);
     setUser(response.usuario);
     router.push('/module1/dashboard');
@@ -51,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('bi_token');
+    localStorage.removeItem('bi_user');
     setToken(null);
     setUser(null);
     router.push('/login');

@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { campaniasApi } from '@/lib/api';
-import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { createPdfDocument, addSummaryCards, addDataTable, savePdf, formatCurrency as pdfFormatCurrency, formatDate as pdfFormatDate } from '@/lib/pdf-export';
+import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, ArrowLeft, FileDown } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
@@ -175,6 +176,60 @@ export default function CampaignDetailPage() {
     setCurrentPage(1);
   };
 
+  const handleExportPdf = async () => {
+    if (!campaign) return;
+    const doc = await createPdfDocument(
+      'Detalle de Campaña',
+      `${campaign.codigo} - ${campaign.nombre}`
+    );
+
+    const infoRows = [
+      ['Código', campaign.codigo],
+      ['Nombre', campaign.nombre],
+      ['Estado', getEstadoLabel(campaign.estado)],
+      ['Fecha Inicio', pdfFormatDate(campaign.fechaInicio)],
+      ['Fecha Fin', pdfFormatDate(campaign.fechaFin)],
+      ['Producto', campaign.producto?.nombre || 'N/A'],
+      ['Subproducto', campaign.subproducto?.nombre || 'N/A'],
+    ];
+
+    addDataTable(doc, ['Campo', 'Valor'], infoRows as (string | number)[][], {
+      title: 'Información de la Campaña',
+    });
+
+    addSummaryCards(doc, [
+      { label: 'Clientes Alcanzados', value: resumen.clientesAlcanzados.toLocaleString() },
+      { label: 'Total Ofertas', value: resumen.totalOfertas.toLocaleString() },
+      { label: 'Monto Total', value: pdfFormatCurrency(resumen.montoTotalOfertado) },
+      { label: 'Ticket Promedio', value: pdfFormatCurrency(resumen.ticketPromedio) },
+    ]);
+
+    const offerRows = ofertas.map((o) => [
+      o.clienteNombreCompleto,
+      pdfFormatCurrency(o.monto),
+      o.tasa ? `${o.tasa}%` : '-',
+      getEstadoLabel(o.estado),
+      pdfFormatDate(o.fechaOferta),
+    ]);
+
+    addDataTable(
+      doc,
+      ['Cliente', 'Monto', 'Tasa', 'Estado', 'Fecha'],
+      offerRows as (string | number)[][],
+      { title: 'Ofertas Asociadas' }
+    );
+
+    if (debouncedSearch.trim()) {
+      const finalY = (doc as any).lastAutoTable?.finalY || 42;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor('#4B5563');
+      doc.text(`Filtro aplicado: ${debouncedSearch.trim()}`, 14, finalY + 8);
+    }
+
+    savePdf(doc, `campania_${campaign.codigo}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   if (loading) {
     return (
       <MainLayout breadcrumbs={[{ label: 'Campañas Comerciales', href: '/module1/campaigns' }, { label: 'Detalle de Campaña' }]}>
@@ -280,7 +335,13 @@ export default function CampaignDetailPage() {
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Ofertas Asociadas</h3>
-            <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPdf}>
+                <FileDown className="w-4 h-4" />
+                Exportar PDF
+              </Button>
+            </div>
           </div>
 
           <div className="mb-6 p-4 bg-secondary/20 rounded-lg">
