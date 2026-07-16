@@ -1,0 +1,4 @@
+codigo,nombre,descripcion,fechaInicio,fechaFin,estado,periodoCodigo,productoCodigo,subproductoCodigo
+CAMP-ERR-01,Campaña Producto Inexistente,,2025-01-01,2025-03-31,ACTIVA,2025-01,PRODUCTO_FALSO,PP_PRESTABONO
+CAMP-ERR-02,Campaña Sin Código Obligatorio,,2025-01-01,2025-03-31,ACTIVA,2025-01,PRESTAMO_PERSONAL,PP_PRESTABONO
+,,
