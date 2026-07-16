@@ -14,4 +14,6 @@ public interface ErrorCargaRepository extends JpaRepository<ErrorCarga, Long> {
     List<ErrorCarga> findByProcesoCargaId(Long procesoCargaId);
 
     Page<ErrorCarga> findByProcesoCargaId(Long procesoCargaId, Pageable pageable);
+
+    void deleteByProcesoCargaIdAndTipoError(Long procesoCargaId, String tipoError);
 }

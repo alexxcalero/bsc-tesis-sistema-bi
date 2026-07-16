@@ -13,5 +13,9 @@ public class ProcesoCargaRequest {
     @NotNull
     private Long tipoCargaId;
 
+    private String periodo;
+
+    private String nombreCarga;
+
     private String observacion;
 }

@@ -12,9 +12,12 @@ import pe.com.banco.bi.module1.oferta.entity.Oferta;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OfertaRepository extends JpaRepository<Oferta, Long> {
+
+    Optional<Oferta> findByCampaniaIdAndClienteIdAndFechaOferta(Long campaniaId, Long clienteId, LocalDate fechaOferta);
 
     List<Oferta> findAllByCampaniaId(Long campaniaId);
 

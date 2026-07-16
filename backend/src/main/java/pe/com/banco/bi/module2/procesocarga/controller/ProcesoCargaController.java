@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +20,8 @@ import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaRequest;
 import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResponse;
 import pe.com.banco.bi.module2.procesocarga.service.ProcesoCargaService;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,7 +85,7 @@ public class ProcesoCargaController {
         return ResponseEntity.ok(procesoCargaService.publicarCarga(id));
     }
 
-    @GetMapping("/{id}/errores")
+    @GetMapping("/{id}/errores-paginados")
     @PreAuthorize("hasAuthority('CARGAS_VER')")
     public ResponseEntity<Page<ErrorCargaResponse>> listarErrores(@PathVariable Long id, Pageable pageable) {
         return ResponseEntity.ok(procesoCargaService.listarErrores(id, pageable));
@@ -90,5 +95,25 @@ public class ProcesoCargaController {
     @PreAuthorize("hasAuthority('CARGAS_VER')")
     public ResponseEntity<Page<DetalleCargaResponse>> listarDetalles(@PathVariable Long id, Pageable pageable) {
         return ResponseEntity.ok(procesoCargaService.listarDetalles(id, pageable));
+    }
+
+    @GetMapping(value = "/{id}/reporte", produces = "text/csv")
+    @PreAuthorize("hasAuthority('CARGAS_VER')")
+    public ResponseEntity<InputStreamResource> descargarReporte(@PathVariable Long id) {
+        InputStream inputStream = procesoCargaService.descargarReporte(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"reporte_carga_" + id + ".csv\"")
+                .body(new InputStreamResource(inputStream));
+    }
+
+    @GetMapping(value = "/{id}/errores", produces = "text/csv")
+    @PreAuthorize("hasAuthority('CARGAS_VER')")
+    public ResponseEntity<InputStreamResource> descargarErrores(@PathVariable Long id) {
+        InputStream inputStream = procesoCargaService.descargarErrores(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"errores_carga_" + id + ".csv\"")
+                .body(new InputStreamResource(inputStream));
     }
 }

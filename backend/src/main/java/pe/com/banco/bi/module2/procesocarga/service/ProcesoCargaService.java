@@ -9,6 +9,7 @@ import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaRequest;
 import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResumenResponse;
 import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResponse;
 
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -31,4 +32,8 @@ public interface ProcesoCargaService {
     Page<ErrorCargaResponse> listarErrores(Long procesoCargaId, Pageable pageable);
 
     Page<DetalleCargaResponse> listarDetalles(Long procesoCargaId, Pageable pageable);
+
+    InputStream descargarReporte(Long id);
+
+    InputStream descargarErrores(Long id);
 }

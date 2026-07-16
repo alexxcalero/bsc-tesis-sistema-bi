@@ -35,15 +35,25 @@ import pe.com.banco.bi.module2.procesocarga.repository.ProcesoCargaRepository;
 import pe.com.banco.bi.module2.procesocarga.service.ProcesoCargaService;
 import pe.com.banco.bi.module2.procesocarga.specification.ProcesoCargaSpecification;
 import pe.com.banco.bi.module1.campania.service.CampaniaService;
+import pe.com.banco.bi.module2.common.importer.CargaDataImporter;
+import pe.com.banco.bi.module2.common.importer.CargaImporterFactory;
+import pe.com.banco.bi.module2.common.importer.ImportError;
+import pe.com.banco.bi.module2.common.importer.ImportResult;
+import pe.com.banco.bi.module2.common.util.CsvWriter;
 import pe.com.banco.bi.module2.resultadocarga.entity.ResultadoCarga;
 import pe.com.banco.bi.module2.resultadocarga.repository.ResultadoCargaRepository;
 import pe.com.banco.bi.securitydomain.usuario.entity.Usuario;
 import pe.com.banco.bi.securitydomain.usuario.repository.UsuarioRepository;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -61,6 +71,7 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
     private final ApplicationEventPublisher eventPublisher;
     private final ProcesoCargaMapper procesoCargaMapper;
     private final CampaniaService campaniaService;
+    private final CargaImporterFactory importerFactory;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -190,27 +201,64 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
         ProcesoCarga proceso = procesoCargaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Proceso de carga no encontrado"));
 
-        if (!"VALIDADA".equals(proceso.getEstadoCarga().getCodigo()) && !"CON_ERRORES".equals(proceso.getEstadoCarga().getCodigo())) {
+        String estadoCodigo = proceso.getEstadoCarga().getCodigo();
+        if (!"VALIDADA".equals(estadoCodigo) && !"CON_ERRORES".equals(estadoCodigo)) {
             throw new RuntimeException("Solo se pueden publicar cargas validadas o con errores");
         }
 
-        EstadoCarga estadoPublicada = estadoCargaRepository.findByCodigo("PUBLICADA")
-                .orElseThrow(() -> new RuntimeException("Estado PUBLICADA no encontrado"));
+        String tipoCargaCodigo = proceso.getTipoCarga().getCodigo();
+        CargaDataImporter importer = importerFactory.resolver(tipoCargaCodigo);
 
-        proceso.setEstadoCarga(estadoPublicada);
-        procesoCargaRepository.save(proceso);
+        List<String[]> filasValidas = detalleCargaRepository.findByProcesoCargaId(id).stream()
+                .filter(d -> Boolean.TRUE.equals(d.getEsValido()))
+                .map(d -> d.getDatosFila().split(","))
+                .collect(Collectors.toList());
+
+        ImportResult resultadoImportacion = importer.importar(id, filasValidas);
 
         ResultadoCarga resultado = resultadoCargaRepository.findByProcesoCargaId(id)
                 .orElseThrow(() -> new RuntimeException("Resultado no encontrado"));
 
-        long validos = detalleCargaRepository.countByProcesoCargaIdAndEsValido(id, true);
-        resultado.setTotalRegistrosProcesados((int) validos);
-        resultadoCargaRepository.save(resultado);
+        errorCargaRepository.deleteByProcesoCargaIdAndTipoError(id, "IMPORTACION");
 
-        try {
-            campaniaService.recalcularMetricasPorProcesoCarga(id);
-        } catch (Exception e) {
-            // Si no hay campaña vinculada u ocurre cualquier error, no detener la publicación
+        for (ImportError error : resultadoImportacion.getErrores()) {
+            errorCargaRepository.save(ErrorCarga.builder()
+                    .numeroFila(error.getNumeroFila())
+                    .campo(error.getCampo())
+                    .mensajeError(error.getMensajeError())
+                    .tipoError(error.getTipoError())
+                    .procesoCarga(proceso)
+                    .build());
+        }
+
+        if (resultadoImportacion.getFilasProcesadas() > 0) {
+            EstadoCarga estadoPublicada = estadoCargaRepository.findByCodigo("PUBLICADA")
+                    .orElseThrow(() -> new RuntimeException("Estado PUBLICADA no encontrado"));
+            proceso.setEstadoCarga(estadoPublicada);
+            resultado.setTotalRegistrosProcesados(resultadoImportacion.getFilasProcesadas());
+        } else {
+            EstadoCarga estadoConErrores = estadoCargaRepository.findByCodigo("CON_ERRORES")
+                    .orElseThrow(() -> new RuntimeException("Estado CON_ERRORES no encontrado"));
+            proceso.setEstadoCarga(estadoConErrores);
+        }
+
+        resultadoCargaRepository.save(resultado);
+        procesoCargaRepository.save(proceso);
+
+        for (Long campaniaId : resultadoImportacion.getCampaniasAfectadas()) {
+            try {
+                campaniaService.recalcularMetricas(campaniaId);
+            } catch (Exception e) {
+                // No detener la publicación si una campaña no puede recalcularse
+            }
+        }
+
+        if (resultadoImportacion.getCampaniasAfectadas().isEmpty()) {
+            try {
+                campaniaService.recalcularMetricasPorProcesoCarga(id);
+            } catch (Exception e) {
+                // Si no hay campaña vinculada u ocurre cualquier error, no detener la publicación
+            }
         }
 
         return buildResponse(proceso);
@@ -240,6 +288,57 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
                         .esValido(d.getEsValido())
                         .observaciones(d.getObservaciones())
                         .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InputStream descargarReporte(Long id) {
+        ProcesoCarga proceso = procesoCargaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Proceso de carga no encontrado"));
+
+        String csv = new CsvWriter()
+                .addRow("codigo", "tipoCarga", "estado", "totalRegistros", "totalValidos",
+                        "totalInvalidos", "totalProcesados", "fechaInicio", "fechaFin", "observacion")
+                .addRow(
+                        proceso.getCodigo(),
+                        proceso.getTipoCarga() != null ? proceso.getTipoCarga().getCodigo() : "",
+                        proceso.getEstadoCarga() != null ? proceso.getEstadoCarga().getCodigo() : "",
+                        String.valueOf(proceso.getTotalRegistros()),
+                        String.valueOf(proceso.getTotalRegValidos()),
+                        String.valueOf(proceso.getTotalRegInvalidos()),
+                        String.valueOf(resultadoCargaRepository.findByProcesoCargaId(id)
+                                .map(ResultadoCarga::getTotalRegistrosProcesados)
+                                .orElse(0)),
+                        proceso.getFechaInicio() != null ? proceso.getFechaInicio().toString() : "",
+                        proceso.getFechaFin() != null ? proceso.getFechaFin().toString() : "",
+                        proceso.getObservacion() != null ? proceso.getObservacion() : ""
+                )
+                .build();
+
+        return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InputStream descargarErrores(Long id) {
+        ProcesoCarga proceso = procesoCargaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Proceso de carga no encontrado"));
+
+        List<ErrorCarga> errores = errorCargaRepository.findByProcesoCargaId(proceso.getId());
+
+        CsvWriter writer = new CsvWriter()
+                .addRow("numeroFila", "campo", "tipoError", "mensajeError");
+
+        for (ErrorCarga error : errores) {
+            writer.addRow(
+                    String.valueOf(error.getNumeroFila()),
+                    error.getCampo() != null ? error.getCampo() : "",
+                    error.getTipoError() != null ? error.getTipoError() : "",
+                    error.getMensajeError() != null ? error.getMensajeError() : ""
+            );
+        }
+
+        return new ByteArrayInputStream(writer.build().getBytes(StandardCharsets.UTF_8));
     }
 
     private ProcesoCargaResponse buildResponse(ProcesoCarga proceso) {

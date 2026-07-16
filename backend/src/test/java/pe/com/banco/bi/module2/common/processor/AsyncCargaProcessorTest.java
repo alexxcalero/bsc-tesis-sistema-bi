@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pe.com.banco.bi.catalog.entity.EstadoCarga;
+import pe.com.banco.bi.catalog.entity.TipoCarga;
 import pe.com.banco.bi.catalog.repository.EstadoCargaRepository;
 import pe.com.banco.bi.module2.archivocarga.entity.ArchivoCarga;
 import pe.com.banco.bi.module2.archivocarga.repository.ArchivoCargaRepository;
@@ -59,10 +60,12 @@ class AsyncCargaProcessorTest {
     void procesarCarga_archivoValido_debeDejarEstadoValidada() {
         EstadoCarga enValidacion = EstadoCarga.builder().id(2L).codigo("EN_VALIDACION").nombre("En validación").build();
         EstadoCarga validada = EstadoCarga.builder().id(3L).codigo("VALIDADA").nombre("Validada").build();
+        TipoCarga tipoCarga = TipoCarga.builder().id(1L).codigo("CAMPANIAS").nombre("Campañas").build();
 
         ProcesoCarga proceso = ProcesoCarga.builder()
                 .id(1L)
                 .codigo("CARGA-001")
+                .tipoCarga(tipoCarga)
                 .totalRegistros(0)
                 .totalRegValidos(0)
                 .totalRegInvalidos(0)
@@ -80,7 +83,12 @@ class AsyncCargaProcessorTest {
         when(estadoCargaRepository.findByCodigo("EN_VALIDACION")).thenReturn(Optional.of(enValidacion));
         when(estadoCargaRepository.findByCodigo("VALIDADA")).thenReturn(Optional.of(validada));
         when(storageService.loadAsInputStream("campanias_validas.csv"))
-                .thenReturn(new ByteArrayInputStream("C1,N1\nC2,N2\nC3,N3\n".getBytes(StandardCharsets.UTF_8)));
+                .thenReturn(new ByteArrayInputStream(
+                        ("codigo,nombre,descripcion,fechaInicio,fechaFin,estado,periodoCodigo,productoCodigo,subproductoCodigo\n" +
+                                "C1,N1,D1,2024-01-01,2024-01-31,ACTIVO\n" +
+                                "C2,N2,D2,2024-02-01,2024-02-28,ACTIVO\n" +
+                                "C3,N3,D3,2024-03-01,2024-03-31,ACTIVO\n")
+                                .getBytes(StandardCharsets.UTF_8)));
         when(procesoCargaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(resultadoCargaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -100,10 +108,12 @@ class AsyncCargaProcessorTest {
     void procesarCarga_archivoConErrores_debeDejarEstadoConErrores() {
         EstadoCarga enValidacion = EstadoCarga.builder().id(2L).codigo("EN_VALIDACION").nombre("En validación").build();
         EstadoCarga conErrores = EstadoCarga.builder().id(4L).codigo("CON_ERRORES").nombre("Con errores").build();
+        TipoCarga tipoCarga = TipoCarga.builder().id(1L).codigo("CAMPANIAS").nombre("Campañas").build();
 
         ProcesoCarga proceso = ProcesoCarga.builder()
                 .id(2L)
                 .codigo("CARGA-002")
+                .tipoCarga(tipoCarga)
                 .totalRegistros(0)
                 .totalRegValidos(0)
                 .totalRegInvalidos(0)
@@ -121,7 +131,7 @@ class AsyncCargaProcessorTest {
         when(estadoCargaRepository.findByCodigo("EN_VALIDACION")).thenReturn(Optional.of(enValidacion));
         when(estadoCargaRepository.findByCodigo("CON_ERRORES")).thenReturn(Optional.of(conErrores));
         when(storageService.loadAsInputStream("campanias_con_errores.csv"))
-                .thenReturn(new ByteArrayInputStream("C1,\n".getBytes(StandardCharsets.UTF_8)));
+                .thenReturn(new ByteArrayInputStream("codigo,nombre\nC1,\n".getBytes(StandardCharsets.UTF_8)));
         when(procesoCargaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(resultadoCargaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 

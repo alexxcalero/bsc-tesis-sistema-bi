@@ -17,6 +17,8 @@ public interface CampaniaRepository extends JpaRepository<Campania, Long>, JpaSp
 
     Optional<Campania> findByProcesoCargaId(Long procesoCargaId);
 
+    Optional<Campania> findByCodigo(String codigo);
+
     @Query("""
             SELECT DISTINCT c FROM Campania c
             WHERE EXISTS (SELECT 1 FROM Oferta o WHERE o.campania.id = c.id AND o.cliente.id = :clienteId)
