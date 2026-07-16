@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { cargasApi } from '@/lib/api';
-import { ArrowLeft, Download, AlertCircle, CheckCircle, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, ChevronRight, Loader2, FileX2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -72,6 +72,26 @@ export default function ValidacionArchivoPage() {
       setError(err.message || 'Error al validar');
     } finally {
       setValidando(false);
+    }
+  };
+
+  const descargarArchivo = (blob: Blob, nombre: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nombre;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDescargarErrores = async () => {
+    try {
+      const blob = await cargasApi.descargarErrores(procesoId);
+      descargarArchivo(blob, `errores_carga_${procesoId}.csv`);
+    } catch (err: any) {
+      setError(err.message || 'Error al descargar errores');
     }
   };
 
@@ -243,10 +263,12 @@ export default function ValidacionArchivoPage() {
         )}
 
         <div className="flex gap-3 justify-end flex-wrap">
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Descargar Errores
-          </Button>
+          {proceso.totalRegInvalidos > 0 && (
+            <Button variant="outline" className="gap-2" onClick={handleDescargarErrores}>
+              <FileX2 className="w-4 h-4" />
+              Descargar Errores
+            </Button>
+          )}
           {canValidate && (
             <Button onClick={handleValidar} disabled={validando}>
               {validando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

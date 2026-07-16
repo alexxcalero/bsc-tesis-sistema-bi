@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { cargasApi } from '@/lib/api';
-import { ArrowLeft, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, FileX2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -61,6 +61,35 @@ export default function DetalleProcesoPage() {
       setError(err.message || 'Error al cargar detalle');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const descargarArchivo = (blob: Blob, nombre: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nombre;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDescargarReporte = async () => {
+    try {
+      const blob = await cargasApi.descargarReporte(procesoId);
+      descargarArchivo(blob, `reporte_carga_${procesoId}.csv`);
+    } catch (err: any) {
+      setError(err.message || 'Error al descargar reporte');
+    }
+  };
+
+  const handleDescargarErrores = async () => {
+    try {
+      const blob = await cargasApi.descargarErrores(procesoId);
+      descargarArchivo(blob, `errores_carga_${procesoId}.csv`);
+    } catch (err: any) {
+      setError(err.message || 'Error al descargar errores');
     }
   };
 
@@ -226,10 +255,16 @@ export default function DetalleProcesoPage() {
         )}
 
         <div className="flex gap-3 justify-end">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleDescargarReporte}>
             <Download className="w-4 h-4" />
             Descargar Reporte
           </Button>
+          {proceso.totalRegInvalidos > 0 && (
+            <Button variant="outline" className="gap-2" onClick={handleDescargarErrores}>
+              <FileX2 className="w-4 h-4" />
+              Descargar Errores
+            </Button>
+          )}
           {(proceso.estadoCarga?.codigo === 'VALIDADA' || proceso.estadoCarga?.codigo === 'CON_ERRORES') && (
             <Link href={`/module2/validation/${proceso.id}`}>
               <Button>Ir a Validación</Button>

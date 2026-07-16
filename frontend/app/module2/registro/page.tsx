@@ -56,6 +56,8 @@ export default function RegistroProcesoPage() {
       const formData = new FormData();
       const datos = {
         tipoCargaId: Number(tipoCarga),
+        periodo: periodo || undefined,
+        nombreCarga: nombreCarga || undefined,
         observacion: observaciones || undefined,
       };
       formData.append('datos', new Blob([JSON.stringify(datos)], { type: 'application/json' }));

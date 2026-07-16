@@ -37,9 +37,7 @@ export function DataTablePagination({
 }: DataTablePaginationProps) {
   const [goToPage, setGoToPage] = useState('');
 
-  if (pageCount <= 1 && totalItems !== undefined && totalItems <= pageSize) {
-    return null;
-  }
+  const effectivePageCount = Math.max(pageCount, 1);
 
   const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = totalItems === undefined ? undefined : Math.min(page * pageSize, totalItems);
@@ -48,10 +46,10 @@ export function DataTablePagination({
     const delta = 1;
     const range: (number | string)[] = [];
 
-    for (let i = 1; i <= pageCount; i++) {
+    for (let i = 1; i <= effectivePageCount; i++) {
       if (
         i === 1 ||
-        i === pageCount ||
+        i === effectivePageCount ||
         (i >= page - delta && i <= page + delta)
       ) {
         range.push(i);
@@ -66,7 +64,7 @@ export function DataTablePagination({
   const handleGoToPage = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const target = parseInt(goToPage, 10);
-      if (!isNaN(target) && target >= 1 && target <= pageCount) {
+      if (!isNaN(target) && target >= 1 && target <= effectivePageCount) {
         onPageChange(target);
       }
       setGoToPage('');
@@ -76,14 +74,12 @@ export function DataTablePagination({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-4 border-t border-border">
       <div className="text-sm text-muted-foreground">
-        {totalItems !== undefined ? (
-          <>
-            Mostrando <span className="font-medium">{startItem}</span> a{' '}
-            <span className="font-medium">{endItem}</span> de{' '}
-            <span className="font-medium">{totalItems}</span> resultados
-          </>
-        ) : (
-          <>Página {page} de {pageCount}</>
+        Página <span className="font-medium">{page}</span> de{' '}
+        <span className="font-medium">{effectivePageCount}</span>
+        {totalItems !== undefined && (
+          <span className="ml-2">
+            ({startItem}-{endItem} de {totalItems})
+          </span>
         )}
       </div>
 
@@ -114,7 +110,7 @@ export function DataTablePagination({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            disabled={page === 1}
+            disabled={page <= 1}
             onClick={() => onPageChange(1)}
             title="Primera página"
           >
@@ -124,8 +120,8 @@ export function DataTablePagination({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            disabled={page === 1}
-            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            onClick={() => onPageChange(Math.max(page - 1, 1))}
             title="Página anterior"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -153,8 +149,8 @@ export function DataTablePagination({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            disabled={page === pageCount}
-            onClick={() => onPageChange(page + 1)}
+            disabled={page >= effectivePageCount}
+            onClick={() => onPageChange(Math.min(page + 1, effectivePageCount))}
             title="Página siguiente"
           >
             <ChevronRight className="h-4 w-4" />
@@ -163,8 +159,8 @@ export function DataTablePagination({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            disabled={page === pageCount}
-            onClick={() => onPageChange(pageCount)}
+            disabled={page >= effectivePageCount}
+            onClick={() => onPageChange(effectivePageCount)}
             title="Última página"
           >
             <ChevronLast className="h-4 w-4" />
@@ -177,7 +173,7 @@ export function DataTablePagination({
             <Input
               type="number"
               min={1}
-              max={pageCount}
+              max={effectivePageCount}
               value={goToPage}
               onChange={(e) => setGoToPage(e.target.value)}
               onKeyDown={handleGoToPage}

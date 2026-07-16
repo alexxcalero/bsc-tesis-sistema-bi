@@ -173,7 +173,7 @@ export default function DashboardPage() {
 
     const appliedFilters = buildParams();
     if (Object.keys(appliedFilters).length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 42;
+      const finalY = (doc as any).pdfCurrentY || 42;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor('#4B5563');
@@ -185,6 +185,7 @@ export default function DashboardPage() {
         doc.text(`${key}: ${getFilterLabel(key, value)}`, 14, filterY);
         filterY += 5;
       });
+      (doc as any).pdfCurrentY = filterY;
     }
 
     savePdf(doc, `resumen_ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);

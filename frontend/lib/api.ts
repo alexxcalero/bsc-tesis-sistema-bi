@@ -225,9 +225,13 @@ export const cargasApi = {
   publicar: (id: number | string) =>
     apiFetch<any>(`/cargas/${id}/publicar`, { method: 'POST' }),
   listarErrores: (id: number | string, params?: Record<string, string>) =>
-    apiFetch<any>(`/cargas/${id}/errores?${new URLSearchParams(params).toString()}`),
+    apiFetch<any>(`/cargas/${id}/errores-paginados?${new URLSearchParams(params).toString()}`),
   listarDetalles: (id: number | string, params?: Record<string, string>) =>
     apiFetch<any>(`/cargas/${id}/detalles?${new URLSearchParams(params).toString()}`),
+  descargarReporte: (id: number | string) =>
+    apiFetchBlob(`/cargas/${id}/reporte`),
+  descargarErrores: (id: number | string) =>
+    apiFetchBlob(`/cargas/${id}/errores`),
 };
 
 export const reportesApi = {

@@ -103,6 +103,7 @@ export async function createPdfDocument(title: string, subtitle?: string): Promi
   doc.line(margin, y, pageWidth - margin, y);
 
   (doc as any).pdfExportHeaderDrawn = true;
+  (doc as any).pdfCurrentY = CONTENT_START_Y;
 
   return doc;
 }
@@ -128,8 +129,11 @@ export function addSummaryCards(doc: jsPDF, items: { label: string; value: strin
   const gap = 4;
   const availableWidth = pageWidth - margin * 2;
   const cardWidth = (availableWidth - gap * (items.length - 1)) / items.length;
-  const startY = (doc as any).lastAutoTable?.finalY || 42;
   const cardHeight = 18;
+  const sectionMargin = 10;
+  let startY = ((doc as any).pdfCurrentY || CONTENT_START_Y) + sectionMargin;
+
+  startY = ensureSpace(doc, startY, cardHeight + sectionMargin);
 
   items.forEach((item, index) => {
     const x = margin + index * (cardWidth + gap);
@@ -150,7 +154,7 @@ export function addSummaryCards(doc: jsPDF, items: { label: string; value: strin
     doc.text(item.label, x + cardWidth / 2, startY + 13, { align: 'center' });
   });
 
-  (doc as any).lastAutoTable = { finalY: startY + cardHeight + 6 };
+  (doc as any).pdfCurrentY = startY + cardHeight;
 }
 
 export function addDataTable(
@@ -163,7 +167,19 @@ export function addDataTable(
     columnStyles?: Record<number, { halign?: 'left' | 'center' | 'right' }>;
   }
 ): void {
-  const startY = options?.startY || (doc as any).lastAutoTable?.finalY || 42;
+  const sectionMargin = 8;
+  let startY = options?.startY ?? ((doc as any).pdfCurrentY || CONTENT_START_Y) + sectionMargin;
+  const titleHeight = options?.title ? 8 : 0;
+  const minTableHeight = 15;
+
+  startY = ensureSpace(doc, options?.title ? startY - 4 : startY, titleHeight + minTableHeight);
+
+  if (options?.title) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(TEXT_GRAY);
+    doc.text(options.title, 14, startY - 4);
+  }
 
   autoTable(doc, {
     startY,
@@ -189,16 +205,12 @@ export function addDataTable(
     },
     columnStyles: options?.columnStyles,
     margin: { left: 14, right: 14 },
-    didDrawPage: (data) => {
+    didDrawPage: () => {
       addFooter(doc);
-      if (options?.title && data.pageNumber === 1) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(TEXT_GRAY);
-        doc.text(options.title, data.settings.margin.left, startY - 4);
-      }
     },
   });
+
+  (doc as any).pdfCurrentY = (doc as any).lastAutoTable?.finalY || startY;
 }
 
 export function savePdf(doc: jsPDF, filename: string): void {
@@ -291,7 +303,10 @@ export async function generateReportFromCsv(
   });
 
   if (totalsRows.length > 0) {
-    const startY = ((doc as any).lastAutoTable?.finalY || 42) + 10;
+    let startY = ((doc as any).pdfCurrentY || CONTENT_START_Y) + 10;
+    const blockHeight = 8 + totalsRows.length * 5;
+    startY = ensureSpace(doc, startY, blockHeight);
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(PRIMARY_COLOR);
@@ -308,6 +323,8 @@ export async function generateReportFromCsv(
         y += 5;
       }
     });
+
+    (doc as any).pdfCurrentY = y;
   }
 
   savePdf(doc, filename);

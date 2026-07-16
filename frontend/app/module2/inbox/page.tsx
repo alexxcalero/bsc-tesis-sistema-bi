@@ -90,9 +90,9 @@ export default function BandejaPage() {
 
   const buildFilters = (): Record<string, string> => {
     const params: Record<string, string> = {};
-    if (searchTerm) params.codigo = searchTerm;
+    if (searchTerm.trim()) params.search = searchTerm.trim();
     if (tipoFilter) params.tipoCargaId = tipoFilter;
-    if (estadoFilter) params.estadoCargaId = estadoFilter;
+    if (estadoFilter) params.estados = estadoFilter;
     if (fechaDesde) params.fechaDesde = `${fechaDesde}T00:00:00`;
     if (fechaHasta) params.fechaHasta = `${fechaHasta}T23:59:59`;
     return params;
@@ -288,7 +288,7 @@ export default function BandejaPage() {
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {estadosCarga.map((estado) => (
-                    <SelectItem key={estado.id} value={String(estado.id)}>
+                    <SelectItem key={estado.id} value={estado.codigo}>
                       {estado.nombre}
                     </SelectItem>
                   ))}

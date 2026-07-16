@@ -220,11 +220,12 @@ export default function CampaignDetailPage() {
     );
 
     if (debouncedSearch.trim()) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 42;
+      const finalY = (doc as any).pdfCurrentY || 42;
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
       doc.setTextColor('#4B5563');
       doc.text(`Filtro aplicado: ${debouncedSearch.trim()}`, 14, finalY + 8);
+      (doc as any).pdfCurrentY = finalY + 14;
     }
 
     savePdf(doc, `campania_${campaign.codigo}_${new Date().toISOString().split('T')[0]}.pdf`);

@@ -149,7 +149,7 @@ export default function ReportsPage() {
         addDataTable(doc, ['Segmento', 'Ticket Promedio'], ticketRows as (string | number)[][], { title: 'Ticket Promedio por Segmento' });
 
         if (Object.keys(filtros).length > 0) {
-          const finalY = (doc as any).lastAutoTable?.finalY || 42;
+          const finalY = (doc as any).pdfCurrentY || 42;
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.setTextColor('#4B5563');
@@ -161,6 +161,7 @@ export default function ReportsPage() {
             if (value) doc.text(`${key}: ${value}`, 14, filterY);
             filterY += 5;
           });
+          (doc as any).pdfCurrentY = filterY;
         }
 
         savePdf(doc, `${selectedReport}_${new Date().toISOString().split('T')[0]}.pdf`);
