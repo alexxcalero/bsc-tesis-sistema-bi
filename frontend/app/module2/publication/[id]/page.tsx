@@ -4,7 +4,7 @@ import { MainLayout } from '@/components/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cargasApi } from '@/lib/api';
-import { ArrowLeft, CheckCircle, AlertCircle, User, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -36,7 +36,6 @@ export default function PublicacionCargaPage() {
   const [error, setError] = useState('');
   const [confirmada, setConfirmada] = useState(false);
   const [publicando, setPublicando] = useState(false);
-  const [publicada, setPublicada] = useState(false);
 
   useEffect(() => {
     loadDetalle();
@@ -60,7 +59,8 @@ export default function PublicacionCargaPage() {
       setPublicando(true);
       setError('');
       await cargasApi.publicar(procesoId);
-      setPublicada(true);
+      sessionStorage.setItem('pendingPublication', procesoId);
+      router.push('/module2/inbox');
     } catch (err: any) {
       setError(err.message || 'Error al publicar la carga');
     } finally {
@@ -103,38 +103,6 @@ export default function PublicacionCargaPage() {
 
   const hayRegistrosValidos = proceso.totalRegValidos > 0;
   const estadoPermitePublicar = ['VALIDADA', 'CON_ERRORES'].includes(proceso.estadoCarga?.codigo || '');
-
-  if (publicada) {
-    return (
-      <MainLayout
-        breadcrumbs={[
-          { label: 'Captura Digital', href: '/module2' },
-          { label: 'Publicación de Carga Validada', href: '#' },
-          { label: 'Confirmar Publicación' },
-        ]}
-      >
-        <div className="p-6">
-          <Card className="p-8 bg-green-50 dark:bg-green-950 border-2 border-green-200 dark:border-green-800 text-center">
-            <div className="flex justify-center mb-4">
-              <CheckCircle className="w-16 h-16 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-green-900 dark:text-green-100 mb-2">Publicación Exitosa</h2>
-            <p className="text-green-800 dark:text-green-200 mb-6">
-              {proceso.totalRegValidos} registros han sido publicados en la base de datos exitosamente.
-            </p>
-            <div className="flex justify-center gap-3">
-              <Link href="/module2/history">
-                <Button>Ver en Historial</Button>
-              </Link>
-              <Link href="/module2/results">
-                <Button variant="outline">Ver Resultados</Button>
-              </Link>
-            </div>
-          </Card>
-        </div>
-      </MainLayout>
-    );
-  }
 
   return (
     <MainLayout

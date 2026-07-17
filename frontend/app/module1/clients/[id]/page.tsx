@@ -299,12 +299,11 @@ export default function ClientDetailPage() {
       pdfFormatCurrency(o.monto),
       o.tasa ? `${o.tasa}%` : '-',
       o.estado,
-      pdfFormatDate(o.fechaOferta),
     ]);
 
     addDataTable(
       doc,
-      ['Campaña', 'Monto', 'Tasa', 'Estado', 'Fecha'],
+      ['Campaña', 'Monto', 'Tasa', 'Estado'],
       ofertaRows as (string | number)[][],
       { title: 'Historial de Ofertas' }
     );
@@ -579,7 +578,6 @@ export default function ClientDetailPage() {
                   <th className="text-right py-3 px-4 font-medium">Monto</th>
                   <th className="text-right py-3 px-4 font-medium">Tasa</th>
                   <th className="text-left py-3 px-4 font-medium">Estado</th>
-                  <th className="text-left py-3 px-4 font-medium">Fecha</th>
                   <th className="text-center py-3 px-4 font-medium">Acción</th>
                 </tr>
               </thead>
@@ -601,7 +599,6 @@ export default function ClientDetailPage() {
                       <td className="py-3 px-4">
                         <StatusBadge status={getEstadoStatus(oferta.estado)} label={oferta.estado} />
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground">{oferta.fechaOferta}</td>
                       <td className="py-3 px-4 text-center">
                         {oferta.estado === 'ACTIVA' && <ReponerButtonOfertaCliente oferta={oferta} cliente={cliente} />}
                       </td>
@@ -609,7 +606,7 @@ export default function ClientDetailPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-4 text-center text-muted-foreground">No hay ofertas registradas</td>
+                    <td colSpan={6} className="py-4 text-center text-muted-foreground">No hay ofertas registradas</td>
                   </tr>
                 )}
               </tbody>

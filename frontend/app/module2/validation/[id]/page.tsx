@@ -34,7 +34,7 @@ export default function ValidacionArchivoPage() {
   const params = useParams();
   const procesoId = params.id as string;
   const { hasPermission } = useAuth();
-  const canValidate = hasPermission('CARGAS_VALIDAR');
+  const canValidate = false;
   const canPublish = hasPermission('CARGAS_PUBLICAR');
   const [proceso, setProceso] = useState<CargaDetalle | null>(null);
   const [errores, setErrores] = useState<ErrorCarga[]>([]);

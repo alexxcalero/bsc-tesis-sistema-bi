@@ -9,8 +9,9 @@ import { StatusBadge } from '@/components/bi/status-badge';
 import { cargasApi, catalogosApi } from '@/lib/api';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { Plus, Search, RotateCcw, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -56,6 +57,39 @@ export default function BandejaPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const pendingId = sessionStorage.getItem('pendingPublication');
+    if (pendingId) {
+      pollingRef.current = setInterval(async () => {
+        try {
+          const result = await cargasApi.estadoPublicacion(pendingId);
+          if (result.publicada) {
+            clearInterval(pollingRef.current!);
+            sessionStorage.removeItem('pendingPublication');
+            toast.success('Publicación completada', {
+              description: `La carga #${pendingId} se ha publicado exitosamente.`,
+            });
+          } else if (!result.enPublicacion) {
+            clearInterval(pollingRef.current!);
+            sessionStorage.removeItem('pendingPublication');
+            toast.error('Error en publicación', {
+              description: `La carga #${pendingId} finalizó con estado: ${result.estado}.`,
+            });
+          }
+        } catch {
+          clearInterval(pollingRef.current!);
+          sessionStorage.removeItem('pendingPublication');
+          toast.error('Error al consultar estado de publicación');
+        }
+      }, 3000);
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
+
   const [resumen, setResumen] = useState({
     total: 0,
     pendientes: 0,

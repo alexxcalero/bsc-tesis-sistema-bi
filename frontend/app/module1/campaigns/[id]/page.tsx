@@ -276,12 +276,11 @@ export default function CampaignDetailPage() {
       pdfFormatCurrency(o.monto),
       o.tasa ? `${o.tasa}%` : '-',
       getEstadoLabel(o.estado),
-      pdfFormatDate(o.fechaOferta),
     ]);
 
     addDataTable(
       doc,
-      ['Cliente', 'Monto', 'Tasa', 'Estado', 'Fecha'],
+      ['Cliente', 'Monto', 'Tasa', 'Estado'],
       offerRows as (string | number)[][],
       { title: 'Ofertas Asociadas' }
     );
@@ -461,10 +460,10 @@ export default function CampaignDetailPage() {
                       <th className="text-left py-3 px-4 font-medium">Cliente</th>
                       <th className="text-left py-3 px-4 font-medium">Producto</th>
                       <th className="text-left py-3 px-4 font-medium">Subproducto</th>
-                      <th className="text-right py-3 px-4 font-medium">Monto</th>
-                      <th className="text-left py-3 px-4 font-medium">Estado</th>
-                      <th className="text-left py-3 px-4 font-medium">Fecha</th>
-                      <th className="text-center py-3 px-4 font-medium">Acción</th>
+                  <th className="text-right py-3 px-4 font-medium">Monto</th>
+                  <th className="text-right py-3 px-4 font-medium">Tasa</th>
+                  <th className="text-left py-3 px-4 font-medium">Estado</th>
+                  <th className="text-center py-3 px-4 font-medium">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -483,10 +482,10 @@ export default function CampaignDetailPage() {
                           <td className="py-3 px-4 text-muted-foreground">{campaign.producto?.nombre || '-'}</td>
                           <td className="py-3 px-4 text-muted-foreground text-xs">{campaign.subproducto?.nombre || 'N/A'}</td>
                           <td className="py-3 px-4 text-right font-medium">{formatCurrency(oferta.monto)}</td>
+                          <td className="py-3 px-4 text-right text-muted-foreground">{oferta.tasa ?? '-'}%</td>
                           <td className="py-3 px-4">
                             <StatusBadge status={getEstadoStatus(oferta.estado)} label={getEstadoLabel(oferta.estado)} />
                           </td>
-                          <td className="py-3 px-4 text-muted-foreground text-xs">{formatDate(oferta.fechaOferta)}</td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <Link href={`/module1/clients/${oferta.clienteId}`}>
