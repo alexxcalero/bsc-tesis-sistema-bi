@@ -225,6 +225,8 @@ export const cargasApi = {
     apiFetch<any>(`/cargas/${id}/validar`, { method: 'POST' }),
   publicar: (id: number | string) =>
     apiFetch<any>(`/cargas/${id}/publicar`, { method: 'POST' }),
+  estadoPublicacion: (id: number | string) =>
+    apiFetch<any>(`/cargas/${id}/estado-publicacion`),
   listarErrores: (id: number | string, params?: Record<string, string>) =>
     apiFetch<any>(`/cargas/${id}/errores-paginados?${new URLSearchParams(params).toString()}`),
   listarDetalles: (id: number | string, params?: Record<string, string>) =>
