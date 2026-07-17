@@ -19,6 +19,7 @@ import pe.com.banco.bi.module1.oferta.dto.OfertaResumenResponse;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResumenTotales;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResponse;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
+import pe.com.banco.bi.module1.campania.service.CampaniaEstadoCalculator;
 import pe.com.banco.bi.module1.oferta.mapper.OfertaMapper;
 import pe.com.banco.bi.module1.oferta.repository.OfertaRepository;
 
@@ -35,6 +36,7 @@ public class CampaniaServiceImpl implements CampaniaService {
     private final OfertaRepository ofertaRepository;
     private final CampaniaMapper campaniaMapper;
     private final OfertaMapper ofertaMapper;
+    private final CampaniaEstadoCalculator campaniaEstadoCalculator;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,17 +84,18 @@ public class CampaniaServiceImpl implements CampaniaService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public CampaniaResponse obtenerCampania(Long id) {
         Campania campania = campaniaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Campaña no encontrada"));
 
+        campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
+
         if (debeRecalcular(campania)) {
             recalcular(campania);
-            campania = campaniaRepository.save(campania);
         }
 
-        return campaniaMapper.toResponse(campania);
+        return campaniaMapper.toResponse(campaniaRepository.save(campania));
     }
 
     @Override
@@ -101,6 +104,7 @@ public class CampaniaServiceImpl implements CampaniaService {
         Campania campania = campaniaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Campaña no encontrada"));
         recalcular(campania);
+        campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
         return campaniaMapper.toResponse(campaniaRepository.save(campania));
     }
 
@@ -109,6 +113,7 @@ public class CampaniaServiceImpl implements CampaniaService {
     public void recalcularMetricasPorProcesoCarga(Long procesoCargaId) {
         campaniaRepository.findByProcesoCargaId(procesoCargaId).ifPresent(campania -> {
             recalcular(campania);
+            campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
             campaniaRepository.save(campania);
         });
     }

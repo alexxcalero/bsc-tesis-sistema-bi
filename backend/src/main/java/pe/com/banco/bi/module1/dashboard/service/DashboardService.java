@@ -72,8 +72,12 @@ public class DashboardService {
         Long periodoId = filtros.getPeriodoId();
         Long segmentoId = filtros.getSegmentoId();
 
-        Object[] kpis = ofertaRepository.calcularKpisConFiltros(
+        List<Object[]> resultado = ofertaRepository.calcularKpisConFiltros(
                 fechaDesde, fechaHasta, estadoCampania, productoId, periodoId, segmentoId);
+
+        Object[] kpis = resultado.isEmpty()
+                ? new Object[]{0L, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO}
+                : resultado.get(0);
 
         long totalCampanias = ((Number) kpis[0]).longValue();
         long totalClientes = ((Number) kpis[1]).longValue();

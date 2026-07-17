@@ -11,6 +11,7 @@ import pe.com.banco.bi.catalog.repository.ProductoRepository;
 import pe.com.banco.bi.catalog.repository.SubproductoRepository;
 import pe.com.banco.bi.module1.campania.entity.Campania;
 import pe.com.banco.bi.module1.campania.repository.CampaniaRepository;
+import pe.com.banco.bi.module1.campania.service.CampaniaEstadoCalculator;
 import pe.com.banco.bi.module2.procesocarga.entity.ProcesoCarga;
 import pe.com.banco.bi.module2.procesocarga.repository.ProcesoCargaRepository;
 
@@ -31,6 +32,7 @@ public class CampaniaImporter implements CargaDataImporter {
     private final PeriodoRepository periodoRepository;
     private final ProductoRepository productoRepository;
     private final SubproductoRepository subproductoRepository;
+    private final CampaniaEstadoCalculator campaniaEstadoCalculator;
 
     @Override
     public boolean soporta(String tipoCargaCodigo) {
@@ -82,7 +84,6 @@ public class CampaniaImporter implements CargaDataImporter {
                             .codigo(codigo)
                             .nombre(nombre)
                             .descripcion(descripcion)
-                            .estado(estado)
                             .fechaInicio(fechaInicio)
                             .fechaFin(fechaFin)
                             .periodo(periodo.orElse(null))
@@ -96,7 +97,6 @@ public class CampaniaImporter implements CargaDataImporter {
                 } else {
                     campania.setNombre(nombre);
                     campania.setDescripcion(descripcion);
-                    campania.setEstado(estado);
                     campania.setFechaInicio(fechaInicio);
                     campania.setFechaFin(fechaFin);
                     campania.setPeriodo(periodo.orElse(null));
@@ -104,6 +104,7 @@ public class CampaniaImporter implements CargaDataImporter {
                     campania.setSubproducto(subproducto.orElse(null));
                 }
 
+                campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
                 Campania guardada = campaniaRepository.save(campania);
                 campaniasAfectadas.add(guardada.getId());
                 procesadas++;

@@ -1,6 +1,8 @@
 package pe.com.banco.bi.module1.oferta.dto;
 
 import lombok.*;
+import pe.com.banco.bi.module1.campania.dto.CampaniaResponse;
+import pe.com.banco.bi.module1.cliente.dto.ClienteResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,4 +24,6 @@ public class OfertaResponse {
     private String campaniaNombre;
     private Long clienteId;
     private String clienteNombreCompleto;
+    private ClienteResponse cliente;
+    private CampaniaResponse campania;
 }

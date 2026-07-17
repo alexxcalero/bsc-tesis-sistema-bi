@@ -109,7 +109,7 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
               AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
               AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
             """)
-    Object[] calcularKpisConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
+    List<Object[]> calcularKpisConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
                                     @Param("fechaHasta") LocalDate fechaHasta,
                                     @Param("estadoCampania") String estadoCampania,
                                     @Param("productoId") Long productoId,

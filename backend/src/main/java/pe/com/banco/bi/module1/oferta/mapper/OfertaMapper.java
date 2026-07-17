@@ -2,10 +2,12 @@ package pe.com.banco.bi.module1.oferta.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import pe.com.banco.bi.module1.campania.mapper.CampaniaMapper;
+import pe.com.banco.bi.module1.cliente.mapper.ClienteMapper;
 import pe.com.banco.bi.module1.oferta.dto.OfertaResponse;
 import pe.com.banco.bi.module1.oferta.entity.Oferta;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {ClienteMapper.class, CampaniaMapper.class})
 public interface OfertaMapper {
 
     @Mapping(target = "campaniaId", source = "campania.id")
