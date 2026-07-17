@@ -10,10 +10,11 @@ import { StatusBadge } from '@/components/bi/status-badge';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { campaniasApi } from '@/lib/api';
 import { createPdfDocument, addSummaryCards, addDataTable, savePdf, formatCurrency as pdfFormatCurrency, formatDate as pdfFormatDate } from '@/lib/pdf-export';
-import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, ArrowLeft, FileDown } from 'lucide-react';
+import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, ArrowLeft, FileDown, Plus } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
+import { useReposicion } from '@/lib/reposicion-context';
 
 interface CampaniaDetalle {
   id: number;
@@ -37,6 +38,10 @@ interface OfertaItem {
   observacion?: string;
   clienteNombreCompleto: string;
   clienteId: number;
+  campaniaId?: number;
+  campaniaNombre?: string;
+  cliente?: any;
+  campania?: any;
 }
 
 interface PaginatedResponse {
@@ -75,10 +80,16 @@ export default function CampaignDetailPage() {
   const [pageSize, setPageSize] = useState(10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const { agregar: agregarReposicion } = useReposicion();
 
   useEffect(() => {
     loadCampaign();
   }, [campaignId]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentPage, debouncedSearch, pageSize]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -176,6 +187,51 @@ export default function CampaignDetailPage() {
     setCurrentPage(1);
   };
 
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === ofertas.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(ofertas.map(o => o.id)));
+    }
+  };
+
+  const handleReponerSeleccionados = () => {
+    ofertas.filter(o => selectedIds.has(o.id)).forEach(o => {
+      const c = o.cliente || {};
+      const camp = o.campania || campaign;
+      agregarReposicion({
+        ofertaId: o.id,
+        tipoDocumento: c?.tipoDocumento?.nombre ?? '',
+        numeroDocumento: c?.numeroDocumento ?? '',
+        primerNombre: c?.primerNombre ?? '',
+        segundoNombre: c?.segundoNombre ?? '',
+        apellidoPaterno: c?.apellidoPaterno ?? '',
+        apellidoMaterno: c?.apellidoMaterno ?? '',
+        fechaNacimiento: c?.fechaNacimiento ?? '',
+        segmento: c?.segmento?.nombre ?? '',
+        zona: c?.zona?.nombre ?? '',
+        agencia: c?.agencia?.nombre ?? '',
+        canal: c?.canal?.nombre ?? '',
+        tipoCliente: c?.tipoCliente?.nombre ?? '',
+        campaniaCodigo: camp.codigo ?? camp.campaniaCodigo ?? '',
+        campaniaNombre: camp.nombre ?? camp.campaniaNombre ?? '',
+        monto: o.monto,
+        tasa: o.tasa ?? 0,
+        fechaOferta: o.fechaOferta,
+        estado: o.estado,
+      });
+    });
+    setSelectedIds(new Set());
+  };
+
   const handleExportPdf = async () => {
     if (!campaign) return;
     const doc = await createPdfDocument(
@@ -265,173 +321,235 @@ export default function CampaignDetailPage() {
       ]}
     >
       <div className="p-6 space-y-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-4 mb-2">
-              <Link href="/module1/campaigns">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
-                  Volver a Campañas
-                </Button>
-              </Link>
-            </div>
-            <h1 className="text-3xl font-bold text-foreground">{campaign.nombre}</h1>
-            <div className="flex items-center gap-4 mt-3">
-              <span className="text-xs font-mono text-muted-foreground bg-secondary/50 px-3 py-1 rounded">
-                {campaign.codigo}
-              </span>
-              <StatusBadge status={getEstadoStatus(campaign.estado)} label={getEstadoLabel(campaign.estado)} />
-              <p className="text-muted-foreground">
-                {formatDate(campaign.fechaInicio)} a {formatDate(campaign.fechaFin)}
-              </p>
-            </div>
-            <p className="text-muted-foreground mt-3 max-w-2xl">{campaign.descripcion || 'Sin descripción'}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            label="Clientes Alcanzados"
-            value={resumen.clientesAlcanzados.toLocaleString()}
-            icon={<Users className="w-5 h-5" />}
-          />
-          <KPICard
-            label="Total de Ofertas"
-            value={resumen.totalOfertas.toLocaleString()}
-            icon={<Target className="w-5 h-5" />}
-          />
-          <KPICard
-            label="Monto Total Ofertado"
-            value={formatCurrency(resumen.montoTotalOfertado)}
-            icon={<DollarSign className="w-5 h-5" />}
-          />
-          <KPICard
-            label="Ticket Promedio"
-            value={formatCurrency(resumen.ticketPromedio)}
-            icon={<DollarSign className="w-5 h-5" />}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <StatCard
-            title="Producto Principal"
-            value={campaign.producto?.nombre || 'N/A'}
-            description={campaign.subproducto?.nombre || 'Múltiples subproductos'}
-            variant="default"
-          />
-          <StatCard
-            title="Período"
-            value={campaign.periodo?.nombre || 'N/A'}
-            description={`${formatDate(campaign.fechaInicio)} - ${formatDate(campaign.fechaFin)}`}
-            variant="default"
-          />
-          <StatCard
-            title="Ticket Promedio"
-            value={formatCurrency(resumen.ticketPromedio)}
-            description={`Total: ${formatCurrency(resumen.montoTotalOfertado)}`}
-            variant="default"
-          />
-        </div>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">Ofertas Asociadas</h3>
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPdf}>
-                <FileDown className="w-4 h-4" />
-                Exportar PDF
-              </Button>
-            </div>
-          </div>
-
-          <div className="mb-6 p-4 bg-secondary/20 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">Buscar por Nombre o Documento</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Nombre del cliente o número de documento..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="pl-10 border border-slate-300 bg-white rounded-md shadow-sm hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:border-blue-500"
-                  />
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-4 mb-2">
+                  <Link href="/module1/campaigns">
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <ArrowLeft className="w-4 h-4" />
+                      Volver a Campañas
+                    </Button>
+                  </Link>
                 </div>
+                <h1 className="text-3xl font-bold text-foreground">{campaign.nombre}</h1>
+                <div className="flex items-center gap-4 mt-3">
+                  <span className="text-xs font-mono text-muted-foreground bg-secondary/50 px-3 py-1 rounded">
+                    {campaign.codigo}
+                  </span>
+                  <StatusBadge status={getEstadoStatus(campaign.estado)} label={getEstadoLabel(campaign.estado)} />
+                  <p className="text-muted-foreground">
+                    {formatDate(campaign.fechaInicio)} a {formatDate(campaign.fechaFin)}
+                  </p>
+                </div>
+                <p className="text-muted-foreground mt-3 max-w-2xl">{campaign.descripcion || 'Sin descripción'}</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 w-fit mt-4"
-              onClick={handleResetOfertasFilters}
-            >
-              <RotateCcw className="w-4 h-4" />
-              Limpiar filtros
-            </Button>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border">
-                <tr className="text-muted-foreground">
-                  <th className="text-left py-3 px-4 font-medium">Cliente</th>
-                  <th className="text-left py-3 px-4 font-medium">Producto</th>
-                  <th className="text-left py-3 px-4 font-medium">Subproducto</th>
-                  <th className="text-right py-3 px-4 font-medium">Monto</th>
-                  <th className="text-left py-3 px-4 font-medium">Estado</th>
-                  <th className="text-left py-3 px-4 font-medium">Fecha</th>
-                  <th className="text-center py-3 px-4 font-medium">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ofertas.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KPICard
+                label="Clientes Alcanzados"
+                value={resumen.clientesAlcanzados.toLocaleString()}
+                icon={<Users className="w-5 h-5" />}
+              />
+              <KPICard
+                label="Total de Ofertas"
+                value={resumen.totalOfertas.toLocaleString()}
+                icon={<Target className="w-5 h-5" />}
+              />
+              <KPICard
+                label="Monto Total Ofertado"
+                value={formatCurrency(resumen.montoTotalOfertado)}
+                icon={<DollarSign className="w-5 h-5" />}
+              />
+              <KPICard
+                label="Ticket Promedio"
+                value={formatCurrency(resumen.ticketPromedio)}
+                icon={<DollarSign className="w-5 h-5" />}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard
+                title="Producto Principal"
+                value={campaign.producto?.nombre || 'N/A'}
+                description={campaign.subproducto?.nombre || 'Múltiples subproductos'}
+                variant="default"
+              />
+              <StatCard
+                title="Período"
+                value={campaign.periodo?.nombre || 'N/A'}
+                description={`${formatDate(campaign.fechaInicio)} - ${formatDate(campaign.fechaFin)}`}
+                variant="default"
+              />
+              <StatCard
+                title="Ticket Promedio"
+                value={formatCurrency(resumen.ticketPromedio)}
+                description={`Total: ${formatCurrency(resumen.montoTotalOfertado)}`}
+                variant="default"
+              />
+            </div>
+
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">Ofertas Asociadas</h3>
+                <div className="flex items-center gap-3">
+                  {selectedIds.size > 0 && (
+                    <Button variant="default" size="sm" className="gap-2" onClick={handleReponerSeleccionados}>
+                      Reponer seleccionados ({selectedIds.size})
+                    </Button>
+                  )}
+                  <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPdf}>
+                    <FileDown className="w-4 h-4" />
+                    Exportar PDF
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mb-6 p-4 bg-secondary/20 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Buscar por Nombre o Documento</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Nombre del cliente o número de documento..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-10 border border-slate-300 bg-white rounded-md shadow-sm hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 w-fit mt-4"
+                  onClick={handleResetOfertasFilters}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Limpiar filtros
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border">
+                    <tr className="text-muted-foreground">
+                      <th className="w-10 py-3 px-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="accent-blue-600 cursor-pointer"
+                          checked={ofertas.length > 0 && selectedIds.size === ofertas.length}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium">Cliente</th>
+                      <th className="text-left py-3 px-4 font-medium">Producto</th>
+                      <th className="text-left py-3 px-4 font-medium">Subproducto</th>
+                      <th className="text-right py-3 px-4 font-medium">Monto</th>
+                      <th className="text-left py-3 px-4 font-medium">Estado</th>
+                      <th className="text-left py-3 px-4 font-medium">Fecha</th>
+                      <th className="text-center py-3 px-4 font-medium">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ofertas.length > 0 ? (
                   ofertas.map((oferta) => (
                     <tr key={oferta.id} className="border-b border-border hover:bg-secondary/30">
+                      <td className="py-3 px-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="accent-blue-600 cursor-pointer"
+                          checked={selectedIds.has(oferta.id)}
+                          onChange={() => toggleSelect(oferta.id)}
+                        />
+                      </td>
                       <td className="py-3 px-4 font-medium">{oferta.clienteNombreCompleto}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{campaign.producto?.nombre || '-'}</td>
-                      <td className="py-3 px-4 text-muted-foreground text-xs">{campaign.subproducto?.nombre || 'N/A'}</td>
-                      <td className="py-3 px-4 text-right font-medium">{formatCurrency(oferta.monto)}</td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={getEstadoStatus(oferta.estado)} label={getEstadoLabel(oferta.estado)} />
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground text-xs">{formatDate(oferta.fechaOferta)}</td>
-                      <td className="py-3 px-4 text-center">
-                        <Link href={`/module1/clients/${oferta.clienteId}`}>
-                          <Button variant="ghost" size="sm">
-                            Ver 360
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="py-6 px-4 text-center text-muted-foreground">
-                      No hay ofertas que coincidan con los filtros
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                          <td className="py-3 px-4 text-muted-foreground">{campaign.producto?.nombre || '-'}</td>
+                          <td className="py-3 px-4 text-muted-foreground text-xs">{campaign.subproducto?.nombre || 'N/A'}</td>
+                          <td className="py-3 px-4 text-right font-medium">{formatCurrency(oferta.monto)}</td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={getEstadoStatus(oferta.estado)} label={getEstadoLabel(oferta.estado)} />
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground text-xs">{formatDate(oferta.fechaOferta)}</td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Link href={`/module1/clients/${oferta.clienteId}`}>
+                                <Button variant="ghost" size="sm">
+                                  Ver 360
+                                </Button>
+                              </Link>
+                              <ReponerButtonOferta oferta={oferta} campaign={campaign} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="py-6 px-4 text-center text-muted-foreground">
+                          No hay ofertas que coincidan con los filtros
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-          <DataTablePagination
-            page={currentPage}
-            pageCount={totalPages}
-            totalItems={totalElements}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setCurrentPage(1);
-            }}
-          />
-        </Card>
-      </div>
-    </MainLayout>
+              <DataTablePagination
+                page={currentPage}
+                pageCount={totalPages}
+                totalItems={totalElements}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+              />
+            </Card>
+          </div>
+      </MainLayout>
+  );
+}
+
+function ReponerButtonOferta({ oferta, campaign }: { oferta: OfertaItem; campaign: CampaniaDetalle }) {
+  const { agregar } = useReposicion();
+
+  const handleClick = () => {
+    const c = oferta.cliente || {};
+    const camp = oferta.campania || campaign;
+
+    agregar({
+      ofertaId: oferta.id,
+      tipoDocumento: c?.tipoDocumento?.nombre ?? '',
+      numeroDocumento: c?.numeroDocumento ?? '',
+      primerNombre: c?.primerNombre ?? '',
+      segundoNombre: c?.segundoNombre ?? '',
+      apellidoPaterno: c?.apellidoPaterno ?? '',
+      apellidoMaterno: c?.apellidoMaterno ?? '',
+      fechaNacimiento: c?.fechaNacimiento ?? '',
+      segmento: c?.segmento?.nombre ?? '',
+      zona: c?.zona?.nombre ?? '',
+      agencia: c?.agencia?.nombre ?? '',
+      canal: c?.canal?.nombre ?? '',
+      tipoCliente: c?.tipoCliente?.nombre ?? '',
+      campaniaCodigo: camp.codigo ?? camp.campaniaCodigo ?? '',
+      campaniaNombre: camp.nombre ?? camp.campaniaNombre ?? '',
+      monto: oferta.monto,
+      tasa: oferta.tasa ?? 0,
+      fechaOferta: oferta.fechaOferta,
+      estado: oferta.estado,
+    });
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleClick}>
+      <Plus className="w-3.5 h-3.5 mr-1" />
+      Reponer
+    </Button>
   );
 }

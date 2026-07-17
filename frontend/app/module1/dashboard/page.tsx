@@ -21,6 +21,12 @@ import { createPdfDocument, addSummaryCards, addDataTable, savePdf } from '@/lib
 
 const COLORS = ['#D85C63', '#8B7EA8', '#6BA3B8', '#7FA89D'];
 
+function formatMonto(valor: number): string {
+  if (valor >= 1_000_000) return `$${(valor / 1_000_000).toFixed(1)}M`;
+  if (valor >= 1_000) return `$${(valor / 1_000).toFixed(1)}K`;
+  return `$${Math.round(valor).toLocaleString()}`;
+}
+
 interface DashboardData {
   kpis: {
     totalCampanias: number;
@@ -43,8 +49,6 @@ interface CatalogoItem {
 const ESTADOS_CAMPANIA = [
   { value: '', label: 'Todos' },
   { value: 'ACTIVA', label: 'Activa' },
-  { value: 'COMPLETADA', label: 'Completada' },
-  { value: 'PLANIFICADA', label: 'Planificada' },
   { value: 'INACTIVA', label: 'Inactiva' },
 ];
 
@@ -140,8 +144,8 @@ export default function DashboardPage() {
       { label: 'Campañas', value: data.kpis.totalCampanias.toLocaleString() },
       { label: 'Clientes', value: data.kpis.totalClientes.toLocaleString() },
       { label: 'Ofertas', value: data.kpis.totalOfertas.toLocaleString() },
-      { label: 'Monto Total', value: `$${(data.kpis.montoTotalOfertado / 1000000).toFixed(1)}M` },
-      { label: 'Ticket Promedio', value: `$${(data.kpis.ticketPromedio / 1000).toFixed(1)}K` },
+      { label: 'Monto Total', value: formatMonto(data.kpis.montoTotalOfertado) },
+      { label: 'Ticket Promedio', value: formatMonto(data.kpis.ticketPromedio) },
     ]);
 
     const productoRows = (data.campaniasPorProducto || []).map((item) => [item.label, item.valor]);
@@ -152,7 +156,7 @@ export default function DashboardPage() {
       { title: 'Campañas por Producto' }
     );
 
-    const evolucionRows = (data.evolucionMonto || []).map((item) => [item.label, `$${(item.valor / 1000000).toFixed(1)}M`]);
+    const evolucionRows = (data.evolucionMonto || []).map((item) => [item.label, formatMonto(item.valor)]);
     addDataTable(
       doc,
       ['Mes', 'Monto Ofertado'],
@@ -344,8 +348,8 @@ export default function DashboardPage() {
             <KPICard label="Cantidad de Campañas" value={data.kpis.totalCampanias} icon={<TrendingUp className="w-5 h-5" />} />
             <KPICard label="Cantidad de Clientes" value={data.kpis.totalClientes} icon={<Users className="w-5 h-5" />} />
             <KPICard label="Cantidad de Ofertas" value={data.kpis.totalOfertas} icon={<Zap className="w-5 h-5" />} />
-            <KPICard label="Monto Total Ofertado" value={`$${(data.kpis.montoTotalOfertado / 1000000).toFixed(1)}M`} icon={<DollarSign className="w-5 h-5" />} />
-            <KPICard label="Ticket Promedio" value={`$${(data.kpis.ticketPromedio / 1000).toFixed(1)}K`} icon={<DollarSign className="w-5 h-5" />} />
+            <KPICard label="Monto Total Ofertado" value={formatMonto(data.kpis.montoTotalOfertado)} icon={<DollarSign className="w-5 h-5" />} />
+            <KPICard label="Ticket Promedio" value={formatMonto(data.kpis.ticketPromedio)} icon={<DollarSign className="w-5 h-5" />} />
           </div>
         </div>
 
@@ -380,31 +384,35 @@ export default function DashboardPage() {
 
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Evolución de Monto Ofertado</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartDataEvolucionMonto}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip formatter={(value) => `$${(Number(value) / 1000000).toFixed(1)}M`} />
-                <Bar dataKey="valor" fill="#A16555" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div id="chart-evolucion" style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartDataEvolucionMonto}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatMonto(Number(value))} />
+                  <Bar dataKey="valor" fill="#A16555" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </Card>
         </div>
 
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Ticket Promedio por Segmento</h3>
           {data.ticketPromedioPorSegmento?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={data.ticketPromedioPorSegmento}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip formatter={(value) => `$${Number(value).toLocaleString()}`} />
-                <Legend />
-                <Line type="monotone" dataKey="valor" stroke="#A16555" strokeWidth={2} dot={{ fill: '#A16555', r: 5 }} name="Ticket Promedio" />
-              </LineChart>
-            </ResponsiveContainer>
+            <div id="chart-ticket" style={{ width: '100%', height: '250px' }}>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={data.ticketPromedioPorSegmento}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatMonto(Number(value))} />
+                  <Legend />
+                  <Line type="monotone" dataKey="valor" stroke="#A16555" strokeWidth={2} dot={{ fill: '#A16555', r: 5 }} name="Ticket Promedio" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-muted-foreground">
               No hay datos disponibles

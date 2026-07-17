@@ -7,10 +7,11 @@ import { StatusBadge } from '@/components/bi/status-badge';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
 import { clientesApi, catalogosApi } from '@/lib/api';
 import { createPdfDocument, addSummaryCards, addDataTable, savePdf, formatCurrency as pdfFormatCurrency, formatDate as pdfFormatDate } from '@/lib/pdf-export';
-import { ArrowLeft, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Plus } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
+import { useReposicion } from '@/lib/reposicion-context';
 import {
   Select,
   SelectContent,
@@ -52,6 +53,11 @@ interface OfertaItem {
   fechaOferta: string;
   estado: string;
   campaniaNombre?: string;
+  campaniaId?: number;
+  clienteId?: number;
+  clienteNombreCompleto?: string;
+  cliente?: any;
+  campania?: any;
 }
 
 interface PaginatedResponse<T> {
@@ -90,6 +96,12 @@ export default function ClientDetailPage() {
   const [ofertaEstadoFilter, setOfertaEstadoFilter] = useState('');
   const [ofertaMontoDesde, setOfertaMontoDesde] = useState('');
   const [ofertaMontoHasta, setOfertaMontoHasta] = useState('');
+  const [selectedOfertaIds, setSelectedOfertaIds] = useState<Set<number>>(new Set());
+  const { agregar: agregarReposicion } = useReposicion();
+
+  useEffect(() => {
+    setSelectedOfertaIds(new Set());
+  }, [ofertaPage, ofertaEstadoFilter, ofertaMontoDesde, ofertaMontoHasta, ofertaPageSize]);
 
   useEffect(() => {
     loadCliente360();
@@ -182,6 +194,52 @@ export default function ClientDetailPage() {
     setCampaniaPeriodoFilter('');
     setCampaniaProductoFilter('');
     setCampaniaPage(1);
+  };
+
+  const toggleSelectOferta = (id: number) => {
+    setSelectedOfertaIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllOfertas = () => {
+    if (selectedOfertaIds.size === ofertas.length) {
+      setSelectedOfertaIds(new Set());
+    } else {
+      setSelectedOfertaIds(new Set(ofertas.map(o => o.id)));
+    }
+  };
+
+  const handleReponerSeleccionados = () => {
+    const { cliente } = data || { cliente: {} };
+    ofertas.filter(o => selectedOfertaIds.has(o.id)).forEach(o => {
+      const c = o.cliente || cliente;
+      const camp = o.campania || {};
+      agregarReposicion({
+        ofertaId: o.id,
+        tipoDocumento: c?.tipoDocumento?.nombre ?? '',
+        numeroDocumento: c?.numeroDocumento ?? '',
+        primerNombre: c?.primerNombre ?? '',
+        segundoNombre: c?.segundoNombre ?? '',
+        apellidoPaterno: c?.apellidoPaterno ?? '',
+        apellidoMaterno: c?.apellidoMaterno ?? '',
+        fechaNacimiento: c?.fechaNacimiento ?? '',
+        segmento: c?.segmento?.nombre ?? '',
+        zona: c?.zona?.nombre ?? '',
+        agencia: c?.agencia?.nombre ?? '',
+        canal: c?.canal?.nombre ?? '',
+        tipoCliente: c?.tipoCliente?.nombre ?? '',
+        campaniaCodigo: camp.codigo ?? o.campaniaCodigo ?? '',
+        campaniaNombre: camp.nombre ?? o.campaniaNombre ?? '',
+        monto: o.monto,
+        tasa: o.tasa ?? 0,
+        fechaOferta: o.fechaOferta,
+        estado: o.estado,
+      });
+    });
+    setSelectedOfertaIds(new Set());
   };
 
   const resetOfertaFilters = () => {
@@ -453,7 +511,14 @@ export default function ClientDetailPage() {
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Historial de Ofertas</h3>
-            <p className="text-sm text-muted-foreground">{ofertaTotalElements} ofertas</p>
+            <div className="flex items-center gap-3">
+              {selectedOfertaIds.size > 0 && (
+                <Button variant="default" size="sm" className="gap-2" onClick={handleReponerSeleccionados}>
+                  Reponer seleccionados ({selectedOfertaIds.size})
+                </Button>
+              )}
+              <p className="text-sm text-muted-foreground">{ofertaTotalElements} ofertas</p>
+            </div>
           </div>
 
           <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -500,17 +565,34 @@ export default function ClientDetailPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-border">
                 <tr className="text-muted-foreground">
+                  <th className="w-10 py-3 px-2 text-center">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 cursor-pointer"
+                      checked={ofertas.length > 0 && selectedOfertaIds.size === ofertas.length}
+                      onChange={toggleSelectAllOfertas}
+                    />
+                  </th>
                   <th className="text-left py-3 px-4 font-medium">Campaña</th>
                   <th className="text-right py-3 px-4 font-medium">Monto</th>
                   <th className="text-right py-3 px-4 font-medium">Tasa</th>
                   <th className="text-left py-3 px-4 font-medium">Estado</th>
                   <th className="text-left py-3 px-4 font-medium">Fecha</th>
+                  <th className="text-center py-3 px-4 font-medium">Acción</th>
                 </tr>
               </thead>
               <tbody>
                 {ofertas.length > 0 ? (
                   ofertas.map((oferta) => (
                     <tr key={oferta.id} className="border-b border-border hover:bg-secondary/30">
+                      <td className="py-3 px-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="accent-blue-600 cursor-pointer"
+                          checked={selectedOfertaIds.has(oferta.id)}
+                          onChange={() => toggleSelectOferta(oferta.id)}
+                        />
+                      </td>
                       <td className="py-3 px-4 font-medium">{oferta.campaniaNombre || 'N/A'}</td>
                       <td className="py-3 px-4 text-right font-medium">{formatCurrency(oferta.monto)}</td>
                       <td className="py-3 px-4 text-right text-muted-foreground">{oferta.tasa}%</td>
@@ -518,11 +600,14 @@ export default function ClientDetailPage() {
                         <StatusBadge status={getEstadoStatus(oferta.estado)} label={oferta.estado} />
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">{oferta.fechaOferta}</td>
+                      <td className="py-3 px-4 text-center">
+                        <ReponerButtonOfertaCliente oferta={oferta} cliente={cliente} />
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-muted-foreground">No hay ofertas registradas</td>
+                    <td colSpan={7} className="py-4 text-center text-muted-foreground">No hay ofertas registradas</td>
                   </tr>
                 )}
               </tbody>
@@ -543,5 +628,43 @@ export default function ClientDetailPage() {
         </Card>
       </div>
     </MainLayout>
+  );
+}
+
+function ReponerButtonOfertaCliente({ oferta, cliente }: { oferta: OfertaItem; cliente: any }) {
+  const { agregar } = useReposicion();
+
+  const handleClick = () => {
+    const c = oferta.cliente || cliente;
+    const camp = oferta.campania || {};
+
+    agregar({
+      ofertaId: oferta.id,
+      tipoDocumento: c?.tipoDocumento?.nombre ?? '',
+      numeroDocumento: c?.numeroDocumento ?? '',
+      primerNombre: c?.primerNombre ?? '',
+      segundoNombre: c?.segundoNombre ?? '',
+      apellidoPaterno: c?.apellidoPaterno ?? '',
+      apellidoMaterno: c?.apellidoMaterno ?? '',
+      fechaNacimiento: c?.fechaNacimiento ?? '',
+      segmento: c?.segmento?.nombre ?? '',
+      zona: c?.zona?.nombre ?? '',
+      agencia: c?.agencia?.nombre ?? '',
+      canal: c?.canal?.nombre ?? '',
+      tipoCliente: c?.tipoCliente?.nombre ?? '',
+      campaniaCodigo: camp.codigo ?? oferta.campaniaCodigo ?? '',
+      campaniaNombre: camp.nombre ?? oferta.campaniaNombre ?? '',
+      monto: oferta.monto,
+      tasa: oferta.tasa ?? 0,
+      fechaOferta: oferta.fechaOferta,
+      estado: oferta.estado,
+    });
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleClick}>
+      <Plus className="w-3.5 h-3.5 mr-1" />
+      Reponer
+    </Button>
   );
 }

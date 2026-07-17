@@ -48,9 +48,12 @@ export default function ClientsPage() {
 
   useEffect(() => {
     loadCatalogos();
-    loadClientes(1);
-    loadResumen();
   }, []);
+
+  useEffect(() => {
+    loadClientes(currentPage);
+    loadResumen();
+  }, [currentPage, pageSize, searchTerm, tipoFilter, segmentoFilter]);
 
   const loadCatalogos = async () => {
     try {
@@ -113,14 +116,8 @@ export default function ClientsPage() {
     }
   };
 
-  const refreshData = (page: number = 1) => {
-    loadClientes(page);
-    loadResumen();
-  };
-
   const handleSearch = () => {
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleResetFilters = () => {
@@ -128,31 +125,25 @@ export default function ClientsPage() {
     setTipoFilter('');
     setSegmentoFilter('');
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    loadClientes(page);
-    loadResumen();
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleTipoFilterChange = (val: string) => {
     setTipoFilter(val === 'all' ? '' : val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleSegmentoFilterChange = (val: string) => {
     setSegmentoFilter(val === 'all' ? '' : val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   return (

@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/auth-context'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { RouteGuard } from '@/components/route-guard'
+import { ReposicionProvider } from '@/lib/reposicion-context'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -41,11 +42,13 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className="font-sans antialiased bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <ReposicionProvider>
           <AuthProvider>
             <RouteGuard>
               {children}
             </RouteGuard>
           </AuthProvider>
+          </ReposicionProvider>
           <Toaster position="top-right" richColors />
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

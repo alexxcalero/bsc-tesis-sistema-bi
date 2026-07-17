@@ -226,8 +226,6 @@ export default function CampaignsPage() {
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="ACTIVA">Activa</SelectItem>
-                    <SelectItem value="COMPLETADA">Completada</SelectItem>
-                    <SelectItem value="PLANIFICADA">Planificada</SelectItem>
                     <SelectItem value="INACTIVA">Inactiva</SelectItem>
                   </SelectContent>
                 </Select>

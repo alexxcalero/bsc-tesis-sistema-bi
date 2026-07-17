@@ -130,10 +130,10 @@ export function addSummaryCards(doc: jsPDF, items: { label: string; value: strin
   const availableWidth = pageWidth - margin * 2;
   const cardWidth = (availableWidth - gap * (items.length - 1)) / items.length;
   const cardHeight = 18;
-  const sectionMargin = 10;
-  let startY = ((doc as any).pdfCurrentY || CONTENT_START_Y) + sectionMargin;
+  const sectionGap = 12;
+  let y = ((doc as any).pdfCurrentY || CONTENT_START_Y) + sectionGap;
 
-  startY = ensureSpace(doc, startY, cardHeight + sectionMargin);
+  y = ensureSpace(doc, y, cardHeight + sectionGap);
 
   items.forEach((item, index) => {
     const x = margin + index * (cardWidth + gap);
@@ -141,20 +141,20 @@ export function addSummaryCards(doc: jsPDF, items: { label: string; value: strin
     doc.setFillColor(LIGHT_GRAY);
     doc.setDrawColor(BORDER_GRAY);
     doc.setLineWidth(0.2);
-    doc.roundedRect(x, startY, cardWidth, cardHeight, 2, 2, 'FD');
+    doc.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(PRIMARY_COLOR);
-    doc.text(item.value, x + cardWidth / 2, startY + 7, { align: 'center' });
+    doc.text(item.value, x + cardWidth / 2, y + 7, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(TEXT_GRAY);
-    doc.text(item.label, x + cardWidth / 2, startY + 13, { align: 'center' });
+    doc.text(item.label, x + cardWidth / 2, y + 13, { align: 'center' });
   });
 
-  (doc as any).pdfCurrentY = startY + cardHeight;
+  (doc as any).pdfCurrentY = y + cardHeight;
 }
 
 export function addDataTable(
@@ -167,22 +167,31 @@ export function addDataTable(
     columnStyles?: Record<number, { halign?: 'left' | 'center' | 'right' }>;
   }
 ): void {
-  const sectionMargin = 8;
-  let startY = options?.startY ?? ((doc as any).pdfCurrentY || CONTENT_START_Y) + sectionMargin;
-  const titleHeight = options?.title ? 8 : 0;
+  const sectionGap = 12;
+  const titleToTableGap = 6;
   const minTableHeight = 15;
+  const currentY = options?.startY ?? ((doc as any).pdfCurrentY || CONTENT_START_Y);
 
-  startY = ensureSpace(doc, options?.title ? startY - 4 : startY, titleHeight + minTableHeight);
+  let blockStartY = currentY + sectionGap;
+  let tableStartY: number;
 
   if (options?.title) {
+    const titleBlockHeight = 8 + titleToTableGap + minTableHeight;
+    blockStartY = ensureSpace(doc, blockStartY, titleBlockHeight);
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(TEXT_GRAY);
-    doc.text(options.title, 14, startY - 4);
+    doc.text(options.title, 14, blockStartY);
+
+    tableStartY = blockStartY + titleToTableGap;
+  } else {
+    blockStartY = ensureSpace(doc, blockStartY, minTableHeight);
+    tableStartY = blockStartY;
   }
 
   autoTable(doc, {
-    startY,
+    startY: tableStartY,
     head: [columns],
     body: rows,
     theme: 'grid',
@@ -210,7 +219,7 @@ export function addDataTable(
     },
   });
 
-  (doc as any).pdfCurrentY = (doc as any).lastAutoTable?.finalY || startY;
+  (doc as any).pdfCurrentY = (doc as any).lastAutoTable?.finalY || blockStartY;
 }
 
 export function savePdf(doc: jsPDF, filename: string): void {
@@ -303,7 +312,7 @@ export async function generateReportFromCsv(
   });
 
   if (totalsRows.length > 0) {
-    let startY = ((doc as any).pdfCurrentY || CONTENT_START_Y) + 10;
+    let startY = ((doc as any).pdfCurrentY || CONTENT_START_Y) + 12;
     const blockHeight = 8 + totalsRows.length * 5;
     startY = ensureSpace(doc, startY, blockHeight);
 

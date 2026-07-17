@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Upload, BarChart3, Shield } from 'lucide-react';
+import { LayoutDashboard, Upload, BarChart3, Shield, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
 
@@ -28,6 +28,7 @@ const modules: SidebarModule[] = [
       { label: 'Dashboard', href: '/module1/dashboard' },
       { label: 'Campañas Comerciales', href: '/module1/campaigns', permiso: 'CAMPANIAS_VER' },
       { label: 'Cliente 360', href: '/module1/clients', permiso: 'CLIENTES_VER' },
+      { label: 'Reposición', href: '/module1/reposicion' },
       { label: 'Reportes y Exportación', href: '/module1/reports', permiso: 'REPORTES_VER' },
     ],
   },

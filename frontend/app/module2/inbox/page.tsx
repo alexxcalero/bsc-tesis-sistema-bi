@@ -71,9 +71,12 @@ export default function BandejaPage() {
 
   useEffect(() => {
     loadCatalogos();
-    loadCargas(1);
-    loadResumen();
   }, []);
+
+  useEffect(() => {
+    loadCargas(currentPage);
+    loadResumen();
+  }, [currentPage, pageSize, searchTerm, tipoFilter, estadoFilter, fechaDesde, fechaHasta]);
 
   const loadCatalogos = async () => {
     try {
@@ -140,14 +143,8 @@ export default function BandejaPage() {
     }
   };
 
-  const refreshData = (page: number = 1) => {
-    loadCargas(page);
-    loadResumen();
-  };
-
   const handleSearch = () => {
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleResetFilters = () => {
@@ -157,43 +154,35 @@ export default function BandejaPage() {
     setFechaDesde('');
     setFechaHasta('');
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    loadCargas(page);
-    loadResumen();
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleTipoFilterChange = (val: string) => {
     setTipoFilter(val === 'all' ? '' : val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleEstadoFilterChange = (val: string) => {
     setEstadoFilter(val === 'all' ? '' : val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleFechaDesdeChange = (val: string) => {
     setFechaDesde(val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const handleFechaHastaChange = (val: string) => {
     setFechaHasta(val);
     setCurrentPage(1);
-    refreshData(1);
   };
 
   const getEstadoBadgeStatus = (estado: string) => {
