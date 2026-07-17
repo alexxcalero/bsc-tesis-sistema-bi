@@ -1,0 +1,2 @@
+#!/bin/bash
+node -e "fetch('http://localhost:8080/api/v1/catalogos/canales',{headers:{'Authorization':'Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhbmFsaXN0YSIsInVzZXJJZCI6Miwicm9sIjoiQU5BTElTVEEiLCJpYXQiOjE3ODQwODY1MzUsImV4cCI6MTc4NDE3MjkzNX0.XfhrJh66Sdyi8yOY28yu_yLK-SJ2N0x2YvMd2G-PUWHrEM_ysljEy380Ipm6PK-M'}}).then(r=>r.status===200?r.json():r.text()).then(j=>console.log(JSON.stringify(j,null,2))).catch(e=>console.error(e))"
