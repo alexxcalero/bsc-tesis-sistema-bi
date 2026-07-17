@@ -1,0 +1,9 @@
+tipoDocumentoCodigo,numeroDocumento,primerNombre,segundoNombre,apellidoPaterno,apellidoMaterno,correo,telefono,segmentoCodigo,zonaCodigo,agenciaCodigo,canalCodigo,tipoClienteCodigo
+DNI,12345678,Carlos,Alberto,Pérez,García,carlos.perez@email.com,999888777,MASS,LIMA,AGC-LIMA-001,DIGITAL,NATURAL
+DNI,23456789,María,Elena,López,Torres,maria.lopez@email.com,999777666,TOP_OF_MASS,LIMA,AGC-LIMA-002,SUCURSAL,NATURAL
+DNI,34567890,Juan,Carlos,Ramos,Díaz,juan.ramos@email.com,999666555,REGULAR,NORTE,AGC-NORTE-001,EJECUTIVO,NATURAL
+DNI,45678901,Laura,Carmen,Vargas,Huerta,laura.vargas@email.com,999555444,PREMIUM,SUR,AGC-SUR-001,DIGITAL,NATURAL
+DNI,56789012,Pedro,Antonio,Soto,Lima,pedro.soto@email.com,999444333,MASS,ESTE,AGC-LIMA-001,TELEFONICO,NATURAL
+CE,67890123,Ana Lucía,Fernández,Moreno,,ana.fernandez@email.com,999333222,BEYOND,LIMA,AGC-LIMA-002,DIGITAL,NATURAL
+RUC,78901234,Inversiones del Norte SAC,,Ruiz,Castillo,contacto@idn.pe,999222111,JURIDICA,NORTE,AGC-NORTE-001,SUCURSAL,JURIDICA
+DNI,89012345,Diego,Andrés,Mendoza,Rojas,diego.mendoza@email.com,999111000,REGULAR,OESTE,AGC-SUR-001,DIGITAL,NATURAL

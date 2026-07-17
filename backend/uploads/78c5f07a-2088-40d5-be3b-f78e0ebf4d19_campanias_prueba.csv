@@ -1,0 +1,5 @@
+codigo,nombre,descripcion,fechaInicio,fechaFin,estado,periodoCodigo,productoCodigo,subproductoCodigo
+CAMP-TEST-01,Campaña Préstamo Test,Campaña válida,2025-01-01,2025-03-31,ACTIVA,2025-01,PRESTAMO_PERSONAL,PP_PRESTABONO
+CAMP-TEST-02,Campaña Tarjeta Test,Campaña válida,2025-02-01,2025-04-30,ACTIVA,2025-02,TARJETA_CREDITO,PTC_PRIMERA
+CAMP-TEST-ERR,Campaña Error,,2025-01-01,2025-03-31,ACTIVA,2025-99,PRODUCTO_FALSO,PP_PRESTABONO
+,Campaña sin código,,2025-01-01,2025-03-31,ACTIVA,2025-01,PRESTAMO_PERSONAL,PP_PRESTABONO
