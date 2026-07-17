@@ -80,7 +80,7 @@ public class ReporteService {
 
     private InputStream generarReporteCampanias(Map<String, String> filtros) {
         List<Campania> campanias = campaniaRepository.findAll().stream()
-                .filter(c -> filtroLong(filtros.get("periodoId"), c.getPeriodo() != null ? c.getPeriodo().getId() : null))
+                .filter(c -> filtroLongList(resolvePeriodoIds(filtros), c.getPeriodo() != null ? c.getPeriodo().getId() : null))
                 .filter(c -> filtroLong(filtros.get("productoId"), c.getProducto() != null ? c.getProducto().getId() : null))
                 .filter(c -> filtroString(filtros.get("estado"), c.getEstado()))
                 .toList();
@@ -195,7 +195,7 @@ public class ReporteService {
                 .filter(c -> filtroLong(filtros.get("agenciaId"), c.getAgencia() != null ? c.getAgencia().getId() : null))
                 .toList();
 
-        Long periodoId = parseLong(filtros.get("periodoId"));
+        List<Long> periodoIds = resolvePeriodoIds(filtros);
         List<Oferta> ofertas = ofertaRepository.findAll();
 
         StringBuilder sb = new StringBuilder();
@@ -207,7 +207,7 @@ public class ReporteService {
         for (Cliente c : clientes) {
             List<Oferta> ofertasCliente = ofertas.stream()
                     .filter(o -> o.getCliente().getId().equals(c.getId()))
-                    .filter(o -> periodoId == null || (o.getCampania().getPeriodo() != null && o.getCampania().getPeriodo().getId().equals(periodoId)))
+                    .filter(o -> periodoIds == null || (o.getCampania().getPeriodo() != null && periodoIds.contains(o.getCampania().getPeriodo().getId())))
                     .toList();
 
             long ofertasActivas = ofertasCliente.stream()
@@ -251,7 +251,7 @@ public class ReporteService {
                 .fechaHasta(parseFecha(filtros.get("fechaHasta")))
                 .estadoCampania(filtros.get("estadoCampania"))
                 .productoId(parseLong(filtros.get("productoId")))
-                .periodoId(parseLong(filtros.get("periodoId")))
+                .periodoIds(resolvePeriodoIds(filtros))
                 .segmentoId(parseLong(filtros.get("segmentoId")))
                 .build();
 
@@ -314,6 +314,29 @@ public class ReporteService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private List<Long> parseLongList(String value) {
+        if (!StringUtils.hasText(value)) return null;
+        String[] parts = value.split(",");
+        return List.of(parts).stream()
+                .map(String::trim)
+                .map(this::parseLong)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private boolean filtroLongList(List<Long> ids, Long valor) {
+        if (ids == null || ids.isEmpty()) return true;
+        if (valor == null) return false;
+        return ids.contains(valor);
+    }
+
+    private List<Long> resolvePeriodoIds(Map<String, String> filtros) {
+        List<Long> ids = parseLongList(filtros.get("periodoIds"));
+        if (ids != null) return ids;
+        Long single = parseLong(filtros.get("periodoId"));
+        return single != null ? List.of(single) : null;
     }
 
     private String buildNombreCliente(Cliente cliente) {

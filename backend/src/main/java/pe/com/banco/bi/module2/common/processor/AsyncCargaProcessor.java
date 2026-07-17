@@ -171,18 +171,6 @@ public class AsyncCargaProcessor {
             return errores;
         }
 
-        for (int i = 0; i < columnas.length && i < campos.length; i++) {
-            if (columnas[i] == null || columnas[i].isBlank()) {
-                errores.add(ErrorCarga.builder()
-                        .numeroFila(numeroFila)
-                        .campo(campos[i])
-                        .mensajeError("Fila " + numeroFila + ": " + campos[i] + " está vacío")
-                        .tipoError("VALIDACION")
-                        .procesoCarga(proceso)
-                        .build());
-            }
-        }
-
         switch (tipoCargaCodigo.toUpperCase()) {
             case "CAMPANIAS" -> validarCampania(columnas, numeroFila, campos, errores, proceso);
             case "CLIENTES" -> validarCliente(columnas, numeroFila, campos, errores, proceso);
@@ -195,24 +183,33 @@ public class AsyncCargaProcessor {
     private void validarCampania(String[] columnas, int numeroFila, String[] campos, List<ErrorCarga> errores, ProcesoCarga proceso) {
         String codigo = getColumna(columnas, 0);
         String nombre = getColumna(columnas, 1);
+        String descripcion = getColumna(columnas, 2);
+        String fechaInicioStr = getColumna(columnas, 3);
+        String fechaFinStr = getColumna(columnas, 4);
         String estado = getColumna(columnas, 5);
         String periodoCodigo = getColumna(columnas, 6);
         String productoCodigo = getColumna(columnas, 7);
         String subproductoCodigo = getColumna(columnas, 8);
-        String fechaInicioStr = getColumna(columnas, 3);
-        String fechaFinStr = getColumna(columnas, 4);
 
-        if (codigo.isBlank() || nombre.isBlank() || estado.isBlank()) {
-            errores.add(ErrorCarga.builder()
-                    .numeroFila(numeroFila)
-                    .campo("codigo,nombre,estado")
-                    .mensajeError("Fila " + numeroFila + ": código, nombre y estado son obligatorios")
-                    .tipoError("VALIDACION")
-                    .procesoCarga(proceso)
-                    .build());
+        String[] requiredFields = {codigo, nombre, descripcion, fechaInicioStr, fechaFinStr, estado, periodoCodigo, productoCodigo, subproductoCodigo};
+        String[] requiredNames = {"codigo", "nombre", "descripcion", "fechaInicio", "fechaFin", "estado", "periodoCodigo", "productoCodigo", "subproductoCodigo"};
+        boolean allPresent = true;
+        for (int i = 0; i < requiredFields.length; i++) {
+            if (requiredFields[i].isBlank() || "N/A".equalsIgnoreCase(requiredFields[i])) {
+                errores.add(ErrorCarga.builder()
+                        .numeroFila(numeroFila)
+                        .campo(requiredNames[i])
+                        .mensajeError("Fila " + numeroFila + ": " + requiredNames[i] + " es obligatorio")
+                        .tipoError("VALIDACION")
+                        .procesoCarga(proceso)
+                        .build());
+                allPresent = false;
+            }
         }
 
-        if (!periodoCodigo.isBlank() && periodoRepository.findByCodigo(periodoCodigo).isEmpty()) {
+        if (!allPresent) return;
+
+        if (periodoRepository.findByCodigo(periodoCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("periodoCodigo")
@@ -222,7 +219,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!productoCodigo.isBlank() && productoRepository.findByCodigo(productoCodigo).isEmpty()) {
+        if (productoRepository.findByCodigo(productoCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("productoCodigo")
@@ -232,8 +229,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!subproductoCodigo.isBlank() && !"N/A".equalsIgnoreCase(subproductoCodigo)
-                && subproductoRepository.findByCodigo(subproductoCodigo).isEmpty()) {
+        if (!"N/A".equalsIgnoreCase(subproductoCodigo) && subproductoRepository.findByCodigo(subproductoCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("subproductoCodigo")
@@ -248,27 +244,38 @@ public class AsyncCargaProcessor {
     }
 
     private void validarCliente(String[] columnas, int numeroFila, String[] campos, List<ErrorCarga> errores, ProcesoCarga proceso) {
-        String tipoDocumentoCodigo = getColumna(columnas, 0);
-        String numeroDocumento = getColumna(columnas, 1);
-        String primerNombre = getColumna(columnas, 2);
-        String apellidoPaterno = getColumna(columnas, 4);
-        String segmentoCodigo = getColumna(columnas, 8);
-        String zonaCodigo = getColumna(columnas, 9);
-        String agenciaCodigo = getColumna(columnas, 10);
-        String canalCodigo = getColumna(columnas, 11);
-        String tipoClienteCodigo = getColumna(columnas, 12);
-
-        if (tipoDocumentoCodigo.isBlank() || numeroDocumento.isBlank() || primerNombre.isBlank() || apellidoPaterno.isBlank()) {
-            errores.add(ErrorCarga.builder()
-                    .numeroFila(numeroFila)
-                    .campo("tipoDocumentoCodigo,numeroDocumento,primerNombre,apellidoPaterno")
-                    .mensajeError("Fila " + numeroFila + ": tipoDocumento, numeroDocumento, primerNombre y apellidoPaterno son obligatorios")
-                    .tipoError("VALIDACION")
-                    .procesoCarga(proceso)
-                    .build());
+        String[] requiredFields = new String[13];
+        String[] requiredNames = {"tipoDocumentoCodigo", "numeroDocumento", "primerNombre", "segundoNombre", "apellidoPaterno", "apellidoMaterno", "correo", "telefono", "segmentoCodigo", "zonaCodigo", "agenciaCodigo", "canalCodigo", "tipoClienteCodigo"};
+        for (int i = 0; i < 13; i++) {
+            requiredFields[i] = getColumna(columnas, i);
         }
 
-        if (!tipoDocumentoCodigo.isBlank() && tipoDocumentoRepository.findByCodigo(tipoDocumentoCodigo).isEmpty()) {
+        boolean allPresent = true;
+        for (int i = 0; i < 13; i++) {
+            if (i == 3) continue;
+            if (requiredFields[i].isBlank()) {
+                errores.add(ErrorCarga.builder()
+                        .numeroFila(numeroFila)
+                        .campo(requiredNames[i])
+                        .mensajeError("Fila " + numeroFila + ": " + requiredNames[i] + " es obligatorio")
+                        .tipoError("VALIDACION")
+                        .procesoCarga(proceso)
+                        .build());
+                allPresent = false;
+            }
+        }
+
+        if (!allPresent) return;
+
+        String tipoDocumentoCodigo = requiredFields[0];
+        String numeroDocumento = requiredFields[1];
+        String segmentoCodigo = requiredFields[8];
+        String zonaCodigo = requiredFields[9];
+        String agenciaCodigo = requiredFields[10];
+        String canalCodigo = requiredFields[11];
+        String tipoClienteCodigo = requiredFields[12];
+
+        if (tipoDocumentoRepository.findByCodigo(tipoDocumentoCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("tipoDocumentoCodigo")
@@ -278,7 +285,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!segmentoCodigo.isBlank() && segmentoRepository.findByCodigo(segmentoCodigo).isEmpty()) {
+        if (segmentoRepository.findByCodigo(segmentoCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("segmentoCodigo")
@@ -288,7 +295,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!zonaCodigo.isBlank() && zonaRepository.findByCodigo(zonaCodigo).isEmpty()) {
+        if (zonaRepository.findByCodigo(zonaCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("zonaCodigo")
@@ -298,7 +305,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!agenciaCodigo.isBlank() && agenciaRepository.findByCodigo(agenciaCodigo).isEmpty()) {
+        if (agenciaRepository.findByCodigo(agenciaCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("agenciaCodigo")
@@ -308,7 +315,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!canalCodigo.isBlank() && canalRepository.findByCodigo(canalCodigo).isEmpty()) {
+        if (canalRepository.findByCodigo(canalCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("canalCodigo")
@@ -318,7 +325,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!tipoClienteCodigo.isBlank() && tipoClienteRepository.findByCodigo(tipoClienteCodigo).isEmpty()) {
+        if (tipoClienteRepository.findByCodigo(tipoClienteCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("tipoClienteCodigo")
@@ -330,23 +337,35 @@ public class AsyncCargaProcessor {
     }
 
     private void validarOferta(String[] columnas, int numeroFila, String[] campos, List<ErrorCarga> errores, ProcesoCarga proceso) {
-        String campaniaCodigo = getColumna(columnas, 0);
-        String clienteNumeroDocumento = getColumna(columnas, 1);
-        String montoStr = getColumna(columnas, 2);
-        String tasaStr = getColumna(columnas, 3);
-        String fechaOfertaStr = getColumna(columnas, 4);
-
-        if (campaniaCodigo.isBlank() || clienteNumeroDocumento.isBlank() || montoStr.isBlank()) {
-            errores.add(ErrorCarga.builder()
-                    .numeroFila(numeroFila)
-                    .campo("campaniaCodigo,clienteNumeroDocumento,monto")
-                    .mensajeError("Fila " + numeroFila + ": campaña, cliente y monto son obligatorios")
-                    .tipoError("VALIDACION")
-                    .procesoCarga(proceso)
-                    .build());
+        String[] requiredFields = new String[6];
+        String[] requiredNames = {"campaniaCodigo", "clienteNumeroDocumento", "monto", "tasa", "fechaOferta", "estado"};
+        for (int i = 0; i < 6; i++) {
+            requiredFields[i] = getColumna(columnas, i);
         }
 
-        if (!campaniaCodigo.isBlank() && campaniaRepository.findByCodigo(campaniaCodigo).isEmpty()) {
+        boolean allPresent = true;
+        for (int i = 0; i < 6; i++) {
+            if (requiredFields[i].isBlank()) {
+                errores.add(ErrorCarga.builder()
+                        .numeroFila(numeroFila)
+                        .campo(requiredNames[i])
+                        .mensajeError("Fila " + numeroFila + ": " + requiredNames[i] + " es obligatorio")
+                        .tipoError("VALIDACION")
+                        .procesoCarga(proceso)
+                        .build());
+                allPresent = false;
+            }
+        }
+
+        if (!allPresent) return;
+
+        String campaniaCodigo = requiredFields[0];
+        String clienteNumeroDocumento = requiredFields[1];
+        String montoStr = requiredFields[2];
+        String tasaStr = requiredFields[3];
+        String fechaOfertaStr = requiredFields[4];
+
+        if (campaniaRepository.findByCodigo(campaniaCodigo).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("campaniaCodigo")
@@ -356,7 +375,7 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!clienteNumeroDocumento.isBlank() && clienteRepository.findByNumeroDocumento(clienteNumeroDocumento).isEmpty()) {
+        if (clienteRepository.findByNumeroDocumento(clienteNumeroDocumento).isEmpty()) {
             errores.add(ErrorCarga.builder()
                     .numeroFila(numeroFila)
                     .campo("clienteNumeroDocumento")
@@ -366,35 +385,31 @@ public class AsyncCargaProcessor {
                     .build());
         }
 
-        if (!montoStr.isBlank()) {
-            try {
-                BigDecimal monto = new BigDecimal(montoStr);
-                if (monto.compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new NumberFormatException();
-                }
-            } catch (NumberFormatException e) {
-                errores.add(ErrorCarga.builder()
-                        .numeroFila(numeroFila)
-                        .campo("monto")
-                        .mensajeError("Fila " + numeroFila + ": monto debe ser un número positivo")
-                        .tipoError("VALIDACION")
-                        .procesoCarga(proceso)
-                        .build());
+        try {
+            BigDecimal monto = new BigDecimal(montoStr);
+            if (monto.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new NumberFormatException();
             }
+        } catch (NumberFormatException e) {
+            errores.add(ErrorCarga.builder()
+                    .numeroFila(numeroFila)
+                    .campo("monto")
+                    .mensajeError("Fila " + numeroFila + ": monto debe ser un número positivo")
+                    .tipoError("VALIDACION")
+                    .procesoCarga(proceso)
+                    .build());
         }
 
-        if (!tasaStr.isBlank()) {
-            try {
-                new BigDecimal(tasaStr);
-            } catch (NumberFormatException e) {
-                errores.add(ErrorCarga.builder()
-                        .numeroFila(numeroFila)
-                        .campo("tasa")
-                        .mensajeError("Fila " + numeroFila + ": tasa debe ser un número válido")
-                        .tipoError("VALIDACION")
-                        .procesoCarga(proceso)
-                        .build());
-            }
+        try {
+            new BigDecimal(tasaStr);
+        } catch (NumberFormatException e) {
+            errores.add(ErrorCarga.builder()
+                    .numeroFila(numeroFila)
+                    .campo("tasa")
+                    .mensajeError("Fila " + numeroFila + ": tasa debe ser un número válido")
+                    .tipoError("VALIDACION")
+                    .procesoCarga(proceso)
+                    .build());
         }
 
         validarFecha(fechaOfertaStr, numeroFila, "fechaOferta", errores, proceso);

@@ -52,7 +52,7 @@ class ReporteControllerTest {
         mockMvc.perform(post("/api/v1/reportes/CAMPANIAS/generar")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"filtros\":{\"periodoId\":\"1\"}}"))
+                        .content("{\"filtros\":{\"periodoIds\":\"1\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")));
     }

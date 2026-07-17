@@ -73,6 +73,11 @@ public class CatalogoController {
         return ResponseEntity.ok(catalogoService.listarPeriodos());
     }
 
+    @GetMapping("/periodos/con-campanias")
+    public ResponseEntity<List<CatalogoResponse>> periodosConCampanias() {
+        return ResponseEntity.ok(catalogoService.listarPeriodosConCampanias());
+    }
+
     @GetMapping("/tipos-carga")
     public ResponseEntity<List<CatalogoResponse>> tiposCarga() {
         return ResponseEntity.ok(catalogoService.listarTiposCarga());

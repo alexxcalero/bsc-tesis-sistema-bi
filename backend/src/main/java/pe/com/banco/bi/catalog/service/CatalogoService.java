@@ -92,6 +92,12 @@ public class CatalogoService {
                 .toList();
     }
 
+    public List<CatalogoResponse> listarPeriodosConCampanias() {
+        return periodoRepository.findPeriodosWithCampanias().stream()
+                .map(catalogoMapper::toResponse)
+                .toList();
+    }
+
     public List<CatalogoResponse> listarTiposCarga() {
         return tipoCargaRepository.findAll().stream()
                 .map(catalogoMapper::toResponse)

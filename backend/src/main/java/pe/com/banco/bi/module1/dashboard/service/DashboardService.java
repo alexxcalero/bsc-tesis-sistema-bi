@@ -8,6 +8,7 @@ import pe.com.banco.bi.module1.cliente.repository.ClienteRepository;
 import pe.com.banco.bi.module1.dashboard.dto.DashboardFiltroRequest;
 import pe.com.banco.bi.module1.dashboard.dto.DashboardKpiResponse;
 import pe.com.banco.bi.module1.dashboard.dto.DashboardResponse;
+import pe.com.banco.bi.module1.dashboard.dto.SerieComparativa;
 import pe.com.banco.bi.module1.dashboard.dto.SerieData;
 import pe.com.banco.bi.module1.oferta.repository.OfertaRepository;
 
@@ -69,11 +70,12 @@ public class DashboardService {
         LocalDate fechaHasta = filtros.getFechaHasta();
         String estadoCampania = filtros.getEstadoCampania();
         Long productoId = filtros.getProductoId();
-        Long periodoId = filtros.getPeriodoId();
+        List<Long> periodoIds = filtros.getPeriodoIds() != null && !filtros.getPeriodoIds().isEmpty()
+                ? filtros.getPeriodoIds() : null;
         Long segmentoId = filtros.getSegmentoId();
 
         List<Object[]> resultado = ofertaRepository.calcularKpisConFiltros(
-                fechaDesde, fechaHasta, estadoCampania, productoId, periodoId, segmentoId);
+                fechaDesde, fechaHasta, estadoCampania, productoId, periodoIds, segmentoId);
 
         Object[] kpis = resultado.isEmpty()
                 ? new Object[]{0L, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO}
@@ -94,62 +96,64 @@ public class DashboardService {
                         .ticketPromedio(ticketPromedio.doubleValue())
                         .tasaConversion(0.0)
                         .build())
-                .campaniasPorProducto(calcularCampaniasPorProductoConFiltros(filtros))
-                .evolucionMonto(calcularEvolucionMontoConFiltros(filtros))
-                .ticketPromedioPorSegmento(calcularTicketPromedioPorSegmentoConFiltros(filtros))
+                .campaniasPorProducto(calcularCampaniasPorProductoConFiltros(filtros, periodoIds))
+                .evolucionMonto(calcularEvolucionMontoConFiltros(filtros, periodoIds))
+                .ticketPromedioPorSegmento(calcularTicketPromedioPorSegmentoConFiltros(filtros, periodoIds))
                 .build();
     }
 
-    private List<SerieData> calcularCampaniasPorProducto() {
+    private List<SerieComparativa> calcularCampaniasPorProducto() {
         List<Object[]> resultado = campaniaRepository.countCampaniasByProducto();
         return resultado.stream()
-                .map(row -> SerieData.builder()
+                .map(row -> SerieComparativa.builder()
+                        .periodo("")
                         .label((String) row[0])
                         .valor(((Number) row[1]).doubleValue())
                         .build())
                 .toList();
     }
 
-    private List<SerieData> calcularCampaniasPorProductoConFiltros(DashboardFiltroRequest filtros) {
+    private List<SerieComparativa> calcularCampaniasPorProductoConFiltros(DashboardFiltroRequest filtros, List<Long> periodoIds) {
         List<Object[]> resultado = ofertaRepository.countCampaniasByProductoConFiltros(
                 filtros.getFechaDesde(),
                 filtros.getFechaHasta(),
                 filtros.getEstadoCampania(),
                 filtros.getProductoId(),
-                filtros.getPeriodoId(),
+                periodoIds,
                 filtros.getSegmentoId());
         return resultado.stream()
-                .map(row -> SerieData.builder()
-                        .label((String) row[0])
-                        .valor(((Number) row[1]).doubleValue())
+                .map(row -> SerieComparativa.builder()
+                        .periodo((String) row[0])
+                        .label((String) row[1])
+                        .valor(((Number) row[2]).doubleValue())
                         .build())
                 .toList();
     }
 
-    private List<SerieData> calcularEvolucionMonto() {
+    private List<SerieComparativa> calcularEvolucionMonto() {
         LocalDate fechaDesde = LocalDate.now().minusMonths(11).withDayOfMonth(1);
         List<Object[]> resultado = ofertaRepository.calcularEvolucionMonto(fechaDesde);
         return completarSerieMensual(resultado, fechaDesde, LocalDate.now());
     }
 
-    private List<SerieData> calcularEvolucionMontoConFiltros(DashboardFiltroRequest filtros) {
-        LocalDate fechaDesde = filtros.getFechaDesde() != null
-                ? filtros.getFechaDesde()
-                : LocalDate.now().minusMonths(11).withDayOfMonth(1);
-        LocalDate fechaHasta = filtros.getFechaHasta() != null
-                ? filtros.getFechaHasta()
-                : LocalDate.now();
+    private List<SerieComparativa> calcularEvolucionMontoConFiltros(DashboardFiltroRequest filtros, List<Long> periodoIds) {
         List<Object[]> resultado = ofertaRepository.calcularEvolucionMontoConFiltros(
                 filtros.getFechaDesde(),
                 filtros.getFechaHasta(),
                 filtros.getEstadoCampania(),
                 filtros.getProductoId(),
-                filtros.getPeriodoId(),
+                periodoIds,
                 filtros.getSegmentoId());
-        return completarSerieMensual(resultado, fechaDesde, fechaHasta);
+        return resultado.stream()
+                .map(row -> SerieComparativa.builder()
+                        .periodo((String) row[0])
+                        .label((String) row[0])
+                        .valor(toBigDecimal(row[1]).doubleValue())
+                        .build())
+                .toList();
     }
 
-    private List<SerieData> completarSerieMensual(List<Object[]> resultado, LocalDate fechaDesde, LocalDate fechaHasta) {
+    private List<SerieComparativa> completarSerieMensual(List<Object[]> resultado, LocalDate fechaDesde, LocalDate fechaHasta) {
         Map<String, BigDecimal> valoresPorMes = resultado.stream()
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
@@ -157,7 +161,7 @@ public class DashboardService {
                         (a, b) -> a
                 ));
 
-        List<SerieData> serie = new ArrayList<>();
+        List<SerieComparativa> serie = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy");
         DateTimeFormatter keyFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
 
@@ -167,34 +171,36 @@ public class DashboardService {
             String label = inicio.format(formatter);
             String key = inicio.format(keyFormatter);
             BigDecimal valor = valoresPorMes.getOrDefault(key, BigDecimal.ZERO);
-            serie.add(SerieData.builder().label(label).valor(valor.doubleValue()).build());
+            serie.add(SerieComparativa.builder().periodo("").label(label).valor(valor.doubleValue()).build());
             inicio = inicio.plusMonths(1);
         }
         return serie;
     }
 
-    private List<SerieData> calcularTicketPromedioPorSegmento() {
+    private List<SerieComparativa> calcularTicketPromedioPorSegmento() {
         List<Object[]> resultado = ofertaRepository.calcularTicketPromedioPorSegmento();
         return resultado.stream()
-                .map(row -> SerieData.builder()
+                .map(row -> SerieComparativa.builder()
+                        .periodo("")
                         .label((String) row[0])
                         .valor(toBigDecimal(row[1]).setScale(2, RoundingMode.HALF_UP).doubleValue())
                         .build())
                 .toList();
     }
 
-    private List<SerieData> calcularTicketPromedioPorSegmentoConFiltros(DashboardFiltroRequest filtros) {
+    private List<SerieComparativa> calcularTicketPromedioPorSegmentoConFiltros(DashboardFiltroRequest filtros, List<Long> periodoIds) {
         List<Object[]> resultado = ofertaRepository.calcularTicketPromedioPorSegmentoConFiltros(
                 filtros.getFechaDesde(),
                 filtros.getFechaHasta(),
                 filtros.getEstadoCampania(),
                 filtros.getProductoId(),
-                filtros.getPeriodoId(),
+                periodoIds,
                 filtros.getSegmentoId());
         return resultado.stream()
-                .map(row -> SerieData.builder()
-                        .label((String) row[0])
-                        .valor(toBigDecimal(row[1]).setScale(2, RoundingMode.HALF_UP).doubleValue())
+                .map(row -> SerieComparativa.builder()
+                        .periodo((String) row[0])
+                        .label((String) row[1])
+                        .valor(toBigDecimal(row[2]).setScale(2, RoundingMode.HALF_UP).doubleValue())
                         .build())
                 .toList();
     }

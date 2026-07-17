@@ -95,7 +95,9 @@ public class CampaniaServiceImpl implements CampaniaService {
             recalcular(campania);
         }
 
-        return campaniaMapper.toResponse(campaniaRepository.save(campania));
+        CampaniaResponse response = campaniaMapper.toResponse(campaniaRepository.save(campania));
+        vencerOfertasSiInactiva(campania);
+        return response;
     }
 
     @Override
@@ -105,7 +107,9 @@ public class CampaniaServiceImpl implements CampaniaService {
                 .orElseThrow(() -> new RuntimeException("Campaña no encontrada"));
         recalcular(campania);
         campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
-        return campaniaMapper.toResponse(campaniaRepository.save(campania));
+        CampaniaResponse response = campaniaMapper.toResponse(campaniaRepository.save(campania));
+        vencerOfertasSiInactiva(campania);
+        return response;
     }
 
     @Override
@@ -115,7 +119,14 @@ public class CampaniaServiceImpl implements CampaniaService {
             recalcular(campania);
             campaniaEstadoCalculator.aplicarEstadoCalculado(campania);
             campaniaRepository.save(campania);
+            vencerOfertasSiInactiva(campania);
         });
+    }
+
+    private void vencerOfertasSiInactiva(Campania campania) {
+        if ("INACTIVA".equals(campania.getEstado())) {
+            ofertaRepository.vencerActivasPorCampania(campania.getId());
+        }
     }
 
     @Override

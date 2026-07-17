@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -19,15 +20,21 @@ public class DashboardFiltroRequest {
     private LocalDate fechaHasta;
     private String estadoCampania;
     private Long productoId;
-    private Long periodoId;
+    private List<Long> periodoIds;
     private Long segmentoId;
+
+    public void setPeriodoId(Long periodoId) {
+        if (periodoId != null) {
+            this.periodoIds = List.of(periodoId);
+        }
+    }
 
     public boolean tieneAlgunFiltro() {
         return fechaDesde != null
                 || fechaHasta != null
                 || (estadoCampania != null && !estadoCampania.isBlank())
                 || productoId != null
-                || periodoId != null
+                || (periodoIds != null && !periodoIds.isEmpty())
                 || segmentoId != null;
     }
 }

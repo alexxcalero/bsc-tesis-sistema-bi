@@ -3,6 +3,7 @@ package pe.com.banco.bi.module1.oferta.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,6 +21,10 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     Optional<Oferta> findByCampaniaIdAndClienteIdAndFechaOferta(Long campaniaId, Long clienteId, LocalDate fechaOferta);
 
     List<Oferta> findAllByCampaniaId(Long campaniaId);
+
+    @Modifying
+    @Query("UPDATE Oferta o SET o.estado = 'VENCIDA' WHERE o.campania.id = :campaniaId AND o.estado = 'ACTIVA'")
+    int vencerActivasPorCampania(@Param("campaniaId") Long campaniaId);
 
     Page<Oferta> findByCampaniaId(Long campaniaId, Pageable pageable);
 
@@ -106,56 +111,57 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
               AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
               AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
               AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
-              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:periodoIds IS NULL OR o.campania.periodo.id IN :periodoIds)
               AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
             """)
     List<Object[]> calcularKpisConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
                                     @Param("fechaHasta") LocalDate fechaHasta,
                                     @Param("estadoCampania") String estadoCampania,
                                     @Param("productoId") Long productoId,
-                                    @Param("periodoId") Long periodoId,
+                                    @Param("periodoIds") List<Long> periodoIds,
                                     @Param("segmentoId") Long segmentoId);
 
     @Query("""
-            SELECT o.campania.producto.nombre, COUNT(DISTINCT o.campania.id)
+            SELECT o.campania.periodo.codigo, o.campania.producto.nombre,
+                   COUNT(DISTINCT o.campania.id)
             FROM Oferta o
             WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
               AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
               AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
               AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
-              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:periodoIds IS NULL OR o.campania.periodo.id IN :periodoIds)
               AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
-            GROUP BY o.campania.producto.nombre
-            ORDER BY o.campania.producto.nombre
+            GROUP BY o.campania.periodo.codigo, o.campania.producto.nombre
+            ORDER BY o.campania.periodo.codigo, o.campania.producto.nombre
             """)
     List<Object[]> countCampaniasByProductoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
                                                       @Param("fechaHasta") LocalDate fechaHasta,
                                                       @Param("estadoCampania") String estadoCampania,
                                                       @Param("productoId") Long productoId,
-                                                      @Param("periodoId") Long periodoId,
+                                                      @Param("periodoIds") List<Long> periodoIds,
                                                       @Param("segmentoId") Long segmentoId);
 
     @Query("""
-            SELECT FUNCTION('to_char', o.fechaOferta, 'YYYY-MM'), COALESCE(SUM(o.monto), 0)
+            SELECT o.campania.periodo.codigo, COALESCE(SUM(o.monto), 0)
             FROM Oferta o
             WHERE (:fechaDesde IS NULL OR o.fechaOferta >= :fechaDesde)
               AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
               AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
               AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
-              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:periodoIds IS NULL OR o.campania.periodo.id IN :periodoIds)
               AND (:segmentoId IS NULL OR o.cliente.segmento.id = :segmentoId)
-            GROUP BY FUNCTION('to_char', o.fechaOferta, 'YYYY-MM')
-            ORDER BY FUNCTION('to_char', o.fechaOferta, 'YYYY-MM')
+            GROUP BY o.campania.periodo.codigo
+            ORDER BY o.campania.periodo.codigo
             """)
     List<Object[]> calcularEvolucionMontoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
                                                     @Param("fechaHasta") LocalDate fechaHasta,
                                                     @Param("estadoCampania") String estadoCampania,
                                                     @Param("productoId") Long productoId,
-                                                    @Param("periodoId") Long periodoId,
+                                                    @Param("periodoIds") List<Long> periodoIds,
                                                     @Param("segmentoId") Long segmentoId);
 
     @Query("""
-            SELECT s.nombre, COALESCE(AVG(o.monto), 0)
+            SELECT o.campania.periodo.codigo, s.nombre, COALESCE(AVG(o.monto), 0)
             FROM Oferta o
             JOIN o.cliente c
             JOIN c.segmento s
@@ -163,15 +169,15 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
               AND (:fechaHasta IS NULL OR o.fechaOferta <= :fechaHasta)
               AND (:estadoCampania IS NULL OR o.campania.estado = :estadoCampania)
               AND (:productoId IS NULL OR o.campania.producto.id = :productoId)
-              AND (:periodoId IS NULL OR o.campania.periodo.id = :periodoId)
+              AND (:periodoIds IS NULL OR o.campania.periodo.id IN :periodoIds)
               AND (:segmentoId IS NULL OR c.segmento.id = :segmentoId)
-            GROUP BY s.nombre
-            ORDER BY s.nombre
+            GROUP BY o.campania.periodo.codigo, s.nombre
+            ORDER BY o.campania.periodo.codigo, s.nombre
             """)
     List<Object[]> calcularTicketPromedioPorSegmentoConFiltros(@Param("fechaDesde") LocalDate fechaDesde,
                                                                @Param("fechaHasta") LocalDate fechaHasta,
                                                                @Param("estadoCampania") String estadoCampania,
                                                                @Param("productoId") Long productoId,
-                                                               @Param("periodoId") Long periodoId,
+                                                               @Param("periodoIds") List<Long> periodoIds,
                                                                @Param("segmentoId") Long segmentoId);
 }

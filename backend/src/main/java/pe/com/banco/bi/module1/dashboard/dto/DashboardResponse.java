@@ -12,7 +12,7 @@ import java.util.List;
 public class DashboardResponse {
 
     private DashboardKpiResponse kpis;
-    private List<SerieData> campaniasPorProducto;
-    private List<SerieData> evolucionMonto;
-    private List<SerieData> ticketPromedioPorSegmento;
+    private List<SerieComparativa> campaniasPorProducto;
+    private List<SerieComparativa> evolucionMonto;
+    private List<SerieComparativa> ticketPromedioPorSegmento;
 }
