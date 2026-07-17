@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/cargas")
@@ -83,6 +84,12 @@ public class ProcesoCargaController {
     @PreAuthorize("hasAuthority('CARGAS_PUBLICAR')")
     public ResponseEntity<ProcesoCargaResponse> publicar(@PathVariable Long id) {
         return ResponseEntity.ok(procesoCargaService.publicarCarga(id));
+    }
+
+    @GetMapping("/{id}/estado-publicacion")
+    @PreAuthorize("hasAuthority('CARGAS_VER')")
+    public ResponseEntity<Map<String, Object>> estadoPublicacion(@PathVariable Long id) {
+        return ResponseEntity.ok(procesoCargaService.consultarEstadoPublicacion(id));
     }
 
     @GetMapping("/{id}/errores-paginados")

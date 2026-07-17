@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface ResultadoCargaRepository extends JpaRepository<ResultadoCarga, Long> {
 
     Optional<ResultadoCarga> findByProcesoCargaId(Long procesoCargaId);
+
+    void deleteByProcesoCargaId(Long procesoCargaId);
 }

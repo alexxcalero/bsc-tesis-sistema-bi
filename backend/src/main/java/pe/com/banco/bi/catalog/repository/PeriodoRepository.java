@@ -13,6 +13,6 @@ public interface PeriodoRepository extends JpaRepository<Periodo, Long> {
 
     Optional<Periodo> findByCodigo(String codigo);
 
-    @Query("SELECT DISTINCT p FROM Periodo p WHERE EXISTS (SELECT 1 FROM Campania c WHERE c.periodo = p)")
+    @Query("SELECT DISTINCT p FROM Periodo p WHERE EXISTS (SELECT 1 FROM Campania c WHERE c.periodo = p) ORDER BY p.codigo")
     List<Periodo> findPeriodosWithCampanias();
 }

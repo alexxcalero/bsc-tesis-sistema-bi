@@ -12,6 +12,7 @@ import pe.com.banco.bi.module2.procesocarga.dto.ProcesoCargaResponse;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public interface ProcesoCargaService {
 
@@ -28,6 +29,8 @@ public interface ProcesoCargaService {
     ProcesoCargaResponse validarCarga(Long id);
 
     ProcesoCargaResponse publicarCarga(Long id);
+
+    Map<String, Object> consultarEstadoPublicacion(Long id);
 
     Page<ErrorCargaResponse> listarErrores(Long procesoCargaId, Pageable pageable);
 

@@ -17,6 +17,7 @@ import pe.com.banco.bi.catalog.repository.EstadoCargaRepository;
 import pe.com.banco.bi.catalog.repository.TipoCargaRepository;
 import pe.com.banco.bi.module2.archivocarga.entity.ArchivoCarga;
 import pe.com.banco.bi.module2.archivocarga.repository.ArchivoCargaRepository;
+import pe.com.banco.bi.module2.common.event.CargaPublicadaEvent;
 import pe.com.banco.bi.module2.common.event.CargaRegistradaEvent;
 import pe.com.banco.bi.module2.common.storage.StorageService;
 import pe.com.banco.bi.module2.detallecarga.dto.DetalleCargaResponse;
@@ -51,6 +52,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -206,62 +208,29 @@ public class ProcesoCargaServiceImpl implements ProcesoCargaService {
             throw new RuntimeException("Solo se pueden publicar cargas validadas o con errores");
         }
 
-        String tipoCargaCodigo = proceso.getTipoCarga().getCodigo();
-        CargaDataImporter importer = importerFactory.resolver(tipoCargaCodigo);
-
-        List<String[]> filasValidas = detalleCargaRepository.findByProcesoCargaId(id).stream()
-                .filter(d -> Boolean.TRUE.equals(d.getEsValido()))
-                .map(d -> d.getDatosFila().split(","))
-                .collect(Collectors.toList());
-
-        ImportResult resultadoImportacion = importer.importar(id, filasValidas);
-
-        ResultadoCarga resultado = resultadoCargaRepository.findByProcesoCargaId(id)
-                .orElseThrow(() -> new RuntimeException("Resultado no encontrado"));
-
-        errorCargaRepository.deleteByProcesoCargaIdAndTipoError(id, "IMPORTACION");
-
-        for (ImportError error : resultadoImportacion.getErrores()) {
-            errorCargaRepository.save(ErrorCarga.builder()
-                    .numeroFila(error.getNumeroFila())
-                    .campo(error.getCampo())
-                    .mensajeError(error.getMensajeError())
-                    .tipoError(error.getTipoError())
-                    .procesoCarga(proceso)
-                    .build());
-        }
-
-        if (resultadoImportacion.getFilasProcesadas() > 0) {
-            EstadoCarga estadoPublicada = estadoCargaRepository.findByCodigo("PUBLICADA")
-                    .orElseThrow(() -> new RuntimeException("Estado PUBLICADA no encontrado"));
-            proceso.setEstadoCarga(estadoPublicada);
-            resultado.setTotalRegistrosProcesados(resultadoImportacion.getFilasProcesadas());
-        } else {
-            EstadoCarga estadoConErrores = estadoCargaRepository.findByCodigo("CON_ERRORES")
-                    .orElseThrow(() -> new RuntimeException("Estado CON_ERRORES no encontrado"));
-            proceso.setEstadoCarga(estadoConErrores);
-        }
-
-        resultadoCargaRepository.save(resultado);
+        EstadoCarga estadoEnPublicacion = estadoCargaRepository.findByCodigo("EN_PUBLICACION")
+                .orElseThrow(() -> new RuntimeException("Estado EN_PUBLICACION no encontrado"));
+        proceso.setEstadoCarga(estadoEnPublicacion);
         procesoCargaRepository.save(proceso);
 
-        for (Long campaniaId : resultadoImportacion.getCampaniasAfectadas()) {
-            try {
-                campaniaService.recalcularMetricas(campaniaId);
-            } catch (Exception e) {
-                // No detener la publicación si una campaña no puede recalcularse
-            }
-        }
-
-        if (resultadoImportacion.getCampaniasAfectadas().isEmpty()) {
-            try {
-                campaniaService.recalcularMetricasPorProcesoCarga(id);
-            } catch (Exception e) {
-                // Si no hay campaña vinculada u ocurre cualquier error, no detener la publicación
-            }
-        }
+        eventPublisher.publishEvent(new CargaPublicadaEvent(proceso.getId()));
 
         return buildResponse(proceso);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> consultarEstadoPublicacion(Long id) {
+        ProcesoCarga proceso = procesoCargaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Proceso de carga no encontrado"));
+
+        String estado = proceso.getEstadoCarga().getCodigo();
+        return Map.of(
+                "id", proceso.getId(),
+                "estado", estado,
+                "publicada", "PUBLICADA".equals(estado),
+                "enPublicacion", "EN_PUBLICACION".equals(estado)
+        );
     }
 
     @Override

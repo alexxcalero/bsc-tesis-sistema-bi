@@ -1,5 +1,7 @@
 package pe.com.banco.bi.module2.common.processor;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -61,6 +63,9 @@ public class AsyncCargaProcessor {
     private final CampaniaRepository campaniaRepository;
     private final ClienteRepository clienteRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Async
     @Transactional
     public void procesarCarga(Long procesoCargaId) {
@@ -80,6 +85,11 @@ public class AsyncCargaProcessor {
         procesoCargaRepository.save(proceso);
 
         try {
+            detalleCargaRepository.deleteByProcesoCargaId(procesoCargaId);
+            errorCargaRepository.deleteByProcesoCargaId(procesoCargaId);
+            resultadoCargaRepository.deleteByProcesoCargaId(procesoCargaId);
+            entityManager.flush();
+
             List<DetalleCarga> detalles = new ArrayList<>();
             List<ErrorCarga> errores = new ArrayList<>();
             String tipoCargaCodigo = proceso.getTipoCarga().getCodigo();
@@ -147,6 +157,7 @@ public class AsyncCargaProcessor {
 
         } catch (Exception e) {
             log.error("Error procesando carga {}", procesoCargaId, e);
+            entityManager.clear();
             EstadoCarga rechazada = estadoCargaRepository.findByCodigo("RECHAZADA")
                     .orElseThrow(() -> new RuntimeException("Estado RECHAZADA no encontrado"));
             proceso.setEstadoCarga(rechazada);

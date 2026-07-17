@@ -16,4 +16,6 @@ public interface DetalleCargaRepository extends JpaRepository<DetalleCarga, Long
     Page<DetalleCarga> findByProcesoCargaId(Long procesoCargaId, Pageable pageable);
 
     long countByProcesoCargaIdAndEsValido(Long procesoCargaId, Boolean esValido);
+
+    void deleteByProcesoCargaId(Long procesoCargaId);
 }
