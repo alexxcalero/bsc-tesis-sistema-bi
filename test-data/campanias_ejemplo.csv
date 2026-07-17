@@ -1,7 +1,7 @@
 codigo,nombre,descripcion,fechaInicio,fechaFin,estado,periodoCodigo,productoCodigo,subproductoCodigo
 CAMP-2025-01,Campaña Préstamo Personal,Campaña de préstamo personal,2025-01-01,2025-03-31,ACTIVA,2025-01,PRESTAMO_PERSONAL,PP_PRESTABONO
 CAMP-2025-02,Campaña Depósito a Plazo,Campaña para captación de depósitos a plazo,2025-02-01,2025-04-30,ACTIVA,2025-02,DEPOSITO_PLAZO,DPF_DEPOSITO
-CAMP-2025-03,Campaña Tarjeta de Crédito,Campaña de adquisición de tarjetas de crédito,2025-01-15,2025-06-30,PLANIFICADA,2025-01,TARJETA_CREDITO,PTC_PRIMERA
+CAMP-2025-03,Campaña Tarjeta de Crédito,Campaña de adquisición de tarjetas de crédito,2025-01-15,2025-06-30,INACTIVA,2025-01,TARJETA_CREDITO,PTC_PRIMERA
 CAMP-2025-04,Campaña ExtraLínea,Campaña de línea de crédito adicional,2025-02-01,2025-05-31,ACTIVA,2025-02,EXTRALINEA,XL_NUEVA
 CAMP-2025-05,Campaña Crédito Vehicular,Financiamiento para compra de vehículos,2025-03-01,2025-08-31,ACTIVA,2025-03,CREDITO,CREDITO_VEHICULAR
 CAMP-2025-06,Campaña Crédito Hipotecario,Financiamiento inmobiliario,2025-03-15,2025-12-31,ACTIVA,2025-03,CREDITO,CREDITO_HIPOTECARIO

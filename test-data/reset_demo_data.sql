@@ -7,7 +7,14 @@
 -- ============================================================
 
 -- -----------------------------------------------------------------
--- 1. LIMPIAR DATOS DE PRUEBAS DEL MÓDULO 2 (solo IDs nuevos)
+-- 1. LIMPIAR TABLAS DE NEGOCIO PRIMERO (libera FK a procesos_carga)
+-- -----------------------------------------------------------------
+DELETE FROM ofertas;
+DELETE FROM campanias;
+DELETE FROM clientes;
+
+-- -----------------------------------------------------------------
+-- 2. LIMPIAR DATOS DE PRUEBAS DEL MÓDULO 2 (solo IDs nuevos)
 -- Valores actuales al momento de crear este script:
 --   procesos_carga:  max id = 10
 --   archivos_carga:  max id = 10
@@ -20,13 +27,6 @@ DELETE FROM detalles_carga WHERE id > 38;
 DELETE FROM archivos_carga WHERE id > 10;
 DELETE FROM resultados_carga WHERE id > 8;
 DELETE FROM procesos_carga WHERE id > 10;
-
--- -----------------------------------------------------------------
--- 2. LIMPIAR TABLAS DE NEGOCIO (se re-siembran a continuación)
--- -----------------------------------------------------------------
-DELETE FROM ofertas;
-DELETE FROM campanias;
-DELETE FROM clientes;
 
 -- -----------------------------------------------------------------
 -- 3. INSERTAR CLIENTES DEMO (8)
