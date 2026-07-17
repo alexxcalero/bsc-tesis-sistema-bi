@@ -13,18 +13,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, Zap, DollarSign, RotateCcw, Loader2, Filter, FileDown } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { TrendingUp, Users, Zap, DollarSign, RotateCcw, Loader2, Filter } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { dashboardApi, catalogosApi } from '@/lib/api';
-import { createPdfDocument, addSummaryCards, addDataTable, savePdf } from '@/lib/pdf-export';
-
-const COLORS = ['#D85C63', '#8B7EA8', '#6BA3B8', '#7FA89D'];
+import { PeriodoMultiSelect } from '@/components/bi/periodo-multi-select';
+import { TabResumenEjecutivo } from '@/components/bi/tab-resumen-ejecutivo';
+import { TabDetalleAnalitico } from '@/components/bi/tab-detalle-analitico';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 function formatMonto(valor: number): string {
   if (valor >= 1_000_000) return `$${(valor / 1_000_000).toFixed(1)}M`;
   if (valor >= 1_000) return `$${(valor / 1_000).toFixed(1)}K`;
   return `$${Math.round(valor).toLocaleString()}`;
+}
+
+interface SerieComparativa {
+  periodo: string;
+  label: string;
+  valor: number;
 }
 
 interface DashboardData {
@@ -36,9 +42,9 @@ interface DashboardData {
     ticketPromedio: number;
     tasaConversion: number;
   };
-  campaniasPorProducto: { label: string; valor: number }[];
-  evolucionMonto: { label: string; valor: number }[];
-  ticketPromedioPorSegmento: { label: string; valor: number }[];
+  campaniasPorProducto: SerieComparativa[];
+  evolucionMonto: SerieComparativa[];
+  ticketPromedioPorSegmento: SerieComparativa[];
 }
 
 interface CatalogoItem {
@@ -65,26 +71,48 @@ export default function DashboardPage() {
   const [fechaHasta, setFechaHasta] = useState('');
   const [estadoCampania, setEstadoCampania] = useState('');
   const [productoId, setProductoId] = useState('');
-  const [periodoId, setPeriodoId] = useState('');
+  const [periodoIds, setPeriodoIds] = useState<string[]>([]);
   const [segmentoId, setSegmentoId] = useState('');
+  const retryingRef = useRef(false);
 
   useEffect(() => {
     loadCatalogos();
-    loadDashboard();
   }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [fechaDesde, fechaHasta, estadoCampania, productoId, periodoIds, segmentoId]);
+
+  useEffect(() => {
+    if (data && periodoIds.length > 0 && !retryingRef.current) {
+      const hasData = data.kpis.totalCampanias > 0 || data.kpis.totalOfertas > 0;
+      if (!hasData) {
+        retryingRef.current = true;
+        setPeriodoIds([]);
+      }
+    }
+  }, [data]);
 
   const loadCatalogos = async () => {
     try {
       const [productosRes, periodosRes, segmentosRes] = await Promise.all([
         catalogosApi.listarProductos(),
-        catalogosApi.listarPeriodos(),
+        catalogosApi.listarPeriodosConCampanias(),
         catalogosApi.listarSegmentos(),
       ]);
       setProductos(productosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
       setPeriodos(periodosRes.map((p: any) => ({ id: p.id, nombre: p.nombre })));
       setSegmentos(segmentosRes.map((s: any) => ({ id: s.id, nombre: s.nombre })));
+
+      const latestPeriod = periodosRes[periodosRes.length - 1];
+      if (latestPeriod) {
+        setPeriodoIds([String(latestPeriod.id)]);
+      } else {
+        loadDashboard();
+      }
     } catch (err: any) {
       console.error('Error cargando catálogos', err);
+      loadDashboard();
     }
   };
 
@@ -94,7 +122,7 @@ export default function DashboardPage() {
     if (fechaHasta) params.fechaHasta = fechaHasta;
     if (estadoCampania) params.estadoCampania = estadoCampania;
     if (productoId) params.productoId = productoId;
-    if (periodoId) params.periodoId = periodoId;
+    if (periodoIds.length > 0) params.periodoIds = periodoIds.join(',');
     if (segmentoId) params.segmentoId = segmentoId;
     return params;
   };
@@ -117,83 +145,13 @@ export default function DashboardPage() {
     setFechaHasta('');
     setEstadoCampania('');
     setProductoId('');
-    setPeriodoId('');
+    setPeriodoIds([]);
     setSegmentoId('');
   };
 
-  const getFilterLabel = (key: string, value: string): string => {
-    switch (key) {
-      case 'estadoCampania':
-        return ESTADOS_CAMPANIA.find((e) => e.value === value)?.label || value;
-      case 'productoId':
-        return productos.find((p) => String(p.id) === value)?.nombre || value;
-      case 'periodoId':
-        return periodos.find((p) => String(p.id) === value)?.nombre || value;
-      case 'segmentoId':
-        return segmentos.find((s) => String(s.id) === value)?.nombre || value;
-      default:
-        return value;
-    }
-  };
 
-  const handleExportPdf = async () => {
-    if (!data) return;
-    const doc = await createPdfDocument('Resumen Ejecutivo', 'Dashboard de Campañas y Clientes');
 
-    addSummaryCards(doc, [
-      { label: 'Campañas', value: data.kpis.totalCampanias.toLocaleString() },
-      { label: 'Clientes', value: data.kpis.totalClientes.toLocaleString() },
-      { label: 'Ofertas', value: data.kpis.totalOfertas.toLocaleString() },
-      { label: 'Monto Total', value: formatMonto(data.kpis.montoTotalOfertado) },
-      { label: 'Ticket Promedio', value: formatMonto(data.kpis.ticketPromedio) },
-    ]);
 
-    const productoRows = (data.campaniasPorProducto || []).map((item) => [item.label, item.valor]);
-    addDataTable(
-      doc,
-      ['Producto', 'Cantidad de Campañas'],
-      productoRows as (string | number)[][],
-      { title: 'Campañas por Producto' }
-    );
-
-    const evolucionRows = (data.evolucionMonto || []).map((item) => [item.label, formatMonto(item.valor)]);
-    addDataTable(
-      doc,
-      ['Mes', 'Monto Ofertado'],
-      evolucionRows as (string | number)[][],
-      { title: 'Evolución Mensual de Monto Ofertado' }
-    );
-
-    const ticketRows = (data.ticketPromedioPorSegmento || []).map((item) => [
-      item.label,
-      `$${item.valor.toLocaleString()}`,
-    ]);
-    addDataTable(
-      doc,
-      ['Segmento', 'Ticket Promedio'],
-      ticketRows as (string | number)[][],
-      { title: 'Ticket Promedio por Segmento' }
-    );
-
-    const appliedFilters = buildParams();
-    if (Object.keys(appliedFilters).length > 0) {
-      const finalY = (doc as any).pdfCurrentY || 42;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor('#4B5563');
-      doc.text('Filtros Aplicados', 14, finalY + 10);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      let filterY = finalY + 16;
-      Object.entries(appliedFilters).forEach(([key, value]) => {
-        doc.text(`${key}: ${getFilterLabel(key, value)}`, 14, filterY);
-        filterY += 5;
-      });
-      (doc as any).pdfCurrentY = filterY;
-    }
-
-    savePdf(doc, `resumen_ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
 
   if (loading) {
     return (
@@ -217,14 +175,6 @@ export default function DashboardPage() {
       </MainLayout>
     );
   }
-
-  const chartDataEvolucionMonto = data.evolucionMonto?.length
-    ? data.evolucionMonto
-    : [
-        { label: 'Dic 2024', valor: 0 },
-        { label: 'Ene 2025', valor: 0 },
-        { label: 'Feb 2025', valor: 0 },
-      ];
 
   return (
     <MainLayout breadcrumbs={[{ label: 'Dashboard' }]}>
@@ -295,20 +245,12 @@ export default function DashboardPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Periodo</Label>
-              <Select value={periodoId || 'all'} onValueChange={(val) => setPeriodoId(val === 'all' ? '' : val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {periodos.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Períodos</Label>
+              <PeriodoMultiSelect
+                periodos={periodos}
+                selectedIds={periodoIds}
+                onChange={setPeriodoIds}
+              />
             </div>
             <div className="space-y-2">
               <Label>Segmento cliente</Label>
@@ -332,10 +274,6 @@ export default function DashboardPage() {
               <RotateCcw className="w-4 h-4 mr-2" />
               Limpiar
             </Button>
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPdf}>
-              <FileDown className="w-4 h-4" />
-              Exportar PDF
-            </Button>
             <Button size="sm" onClick={loadDashboard}>
               Aplicar filtros
             </Button>
@@ -353,72 +291,18 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Campañas por Producto</h3>
-            {data.campaniasPorProducto?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={data.campaniasPorProducto}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry) => `${entry.label}`}
-                    outerRadius={80}
-                    dataKey="valor"
-                  >
-                    {data.campaniasPorProducto.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                No hay datos disponibles
-              </div>
-            )}
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Evolución de Monto Ofertado</h3>
-            <div id="chart-evolucion" style={{ width: '100%', height: '300px' }}>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartDataEvolucionMonto}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatMonto(Number(value))} />
-                  <Bar dataKey="valor" fill="#A16555" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </div>
-
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Ticket Promedio por Segmento</h3>
-          {data.ticketPromedioPorSegmento?.length > 0 ? (
-            <div id="chart-ticket" style={{ width: '100%', height: '250px' }}>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={data.ticketPromedioPorSegmento}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatMonto(Number(value))} />
-                  <Legend />
-                  <Line type="monotone" dataKey="valor" stroke="#A16555" strokeWidth={2} dot={{ fill: '#A16555', r: 5 }} name="Ticket Promedio" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-              No hay datos disponibles
-            </div>
-          )}
-        </Card>
+        <Tabs defaultValue="detalle-analitico">
+          <TabsList>
+            <TabsTrigger value="resumen">Resumen Ejecutivo</TabsTrigger>
+            <TabsTrigger value="detalle-analitico">Detalle Analítico</TabsTrigger>
+          </TabsList>
+          <TabsContent value="resumen">
+            <TabResumenEjecutivo data={data} />
+          </TabsContent>
+          <TabsContent value="detalle-analitico">
+            <TabDetalleAnalitico data={data} />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );

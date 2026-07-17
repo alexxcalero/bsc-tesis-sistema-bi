@@ -65,7 +65,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-2">
           <BarChart3 className="w-6 h-6 text-sidebar-primary" />
           <div className="flex flex-col">
-            <h1 className="text-lg font-bold text-sidebar-primary">BI Bancario</h1>
+            <h1 className="text-lg font-bold text-sidebar-primary">Sistema de Integración Bancario</h1>
             <p className="text-xs text-sidebar-foreground/60">v1.0</p>
           </div>
         </div>

@@ -108,6 +108,7 @@ export default function AuditoriaPage() {
       const params: Record<string, string> = {
         page: String(page - 1),
         size: String(pageSize),
+        sort: 'fechaHora,desc',
         ...buildFilters(),
       };
 

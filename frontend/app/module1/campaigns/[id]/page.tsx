@@ -14,6 +14,7 @@ import { DollarSign, Users, Target, Search, RotateCcw, Loader2, AlertCircle, Arr
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useReposicion } from '@/lib/reposicion-context';
 
 interface CampaniaDetalle {
@@ -152,7 +153,8 @@ export default function CampaignDetailPage() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('es-PE');
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('es-PE');
   };
 
   const formatCurrency = (value?: number) => {
@@ -161,7 +163,7 @@ export default function CampaignDetailPage() {
   };
 
   const getEstadoStatus = (estado: string): 'active' | 'inactive' | 'completed' | 'pending' => {
-    if (estado === 'ACTIVA') return 'active';
+    if (estado === 'ACTIVA' || estado === 'ACEPTADA') return 'active';
     if (estado === 'COMPLETADA') return 'completed';
     if (estado === 'PLANIFICADA') return 'pending';
     return 'inactive';
@@ -171,6 +173,10 @@ export default function CampaignDetailPage() {
     switch (estado) {
       case 'ACTIVA':
         return 'Activa';
+      case 'ACEPTADA':
+        return 'Aceptada';
+      case 'VENCIDA':
+        return 'Vencida';
       case 'COMPLETADA':
         return 'Completada';
       case 'PLANIFICADA':
@@ -196,15 +202,20 @@ export default function CampaignDetailPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === ofertas.length) {
+    const activas = ofertas.filter(o => o.estado === 'ACTIVA');
+    if (selectedIds.size === activas.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(ofertas.map(o => o.id)));
+      setSelectedIds(new Set(activas.map(o => o.id)));
     }
   };
 
   const handleReponerSeleccionados = () => {
-    ofertas.filter(o => selectedIds.has(o.id)).forEach(o => {
+    if (!campaign || campaign.estado !== 'ACTIVA') {
+      toast.error('No se puede reponer ofertas de campañas inactivas');
+      return;
+    }
+    ofertas.filter(o => selectedIds.has(o.id) && o.estado === 'ACTIVA').forEach(o => {
       const c = o.cliente || {};
       const camp = o.campania || campaign;
       agregarReposicion({
@@ -395,7 +406,7 @@ export default function CampaignDetailPage() {
                 <div className="flex items-center gap-3">
                   {selectedIds.size > 0 && (
                     <Button variant="default" size="sm" className="gap-2" onClick={handleReponerSeleccionados}>
-                      Reponer seleccionados ({selectedIds.size})
+                      Reponer seleccionados ({ofertas.filter(o => selectedIds.has(o.id) && o.estado === 'ACTIVA').length})
                     </Button>
                   )}
                   <p className="text-sm text-muted-foreground">{totalElements} ofertas</p>
@@ -443,7 +454,7 @@ export default function CampaignDetailPage() {
                         <input
                           type="checkbox"
                           className="accent-blue-600 cursor-pointer"
-                          checked={ofertas.length > 0 && selectedIds.size === ofertas.length}
+                          checked={ofertas.length > 0 && selectedIds.size === ofertas.filter(o => o.estado === 'ACTIVA').length}
                           onChange={toggleSelectAll}
                         />
                       </th>
@@ -483,7 +494,7 @@ export default function CampaignDetailPage() {
                                   Ver 360
                                 </Button>
                               </Link>
-                              <ReponerButtonOferta oferta={oferta} campaign={campaign} />
+                              {oferta.estado === 'ACTIVA' && <ReponerButtonOferta oferta={oferta} campaign={campaign} />}
                             </div>
                           </td>
                         </tr>
@@ -520,8 +531,12 @@ function ReponerButtonOferta({ oferta, campaign }: { oferta: OfertaItem; campaig
   const { agregar } = useReposicion();
 
   const handleClick = () => {
+    const camp = campaign || oferta.campania;
+    if (!camp || camp.estado !== 'ACTIVA') {
+      toast.error('No se puede reponer ofertas de campañas inactivas');
+      return;
+    }
     const c = oferta.cliente || {};
-    const camp = oferta.campania || campaign;
 
     agregar({
       ofertaId: oferta.id,
@@ -537,8 +552,8 @@ function ReponerButtonOferta({ oferta, campaign }: { oferta: OfertaItem; campaig
       agencia: c?.agencia?.nombre ?? '',
       canal: c?.canal?.nombre ?? '',
       tipoCliente: c?.tipoCliente?.nombre ?? '',
-      campaniaCodigo: camp.codigo ?? camp.campaniaCodigo ?? '',
-      campaniaNombre: camp.nombre ?? camp.campaniaNombre ?? '',
+      campaniaCodigo: camp.codigo ?? '',
+      campaniaNombre: camp.nombre ?? '',
       monto: oferta.monto,
       tasa: oferta.tasa ?? 0,
       fechaOferta: oferta.fechaOferta,

@@ -5,12 +5,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bi/status-badge';
 import { DataTablePagination } from '@/components/bi/data-table-pagination';
-import { clientesApi, catalogosApi } from '@/lib/api';
+import { clientesApi, catalogosApi, campaniasApi } from '@/lib/api';
 import { createPdfDocument, addSummaryCards, addDataTable, savePdf, formatCurrency as pdfFormatCurrency, formatDate as pdfFormatDate } from '@/lib/pdf-export';
 import { ArrowLeft, Download, Loader2, Plus } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useReposicion } from '@/lib/reposicion-context';
 import {
   Select,
@@ -205,18 +206,20 @@ export default function ClientDetailPage() {
   };
 
   const toggleSelectAllOfertas = () => {
-    if (selectedOfertaIds.size === ofertas.length) {
+    const activas = ofertas.filter(o => o.estado === 'ACTIVA');
+    if (selectedOfertaIds.size === activas.length) {
       setSelectedOfertaIds(new Set());
     } else {
-      setSelectedOfertaIds(new Set(ofertas.map(o => o.id)));
+      setSelectedOfertaIds(new Set(activas.map(o => o.id)));
     }
   };
 
   const handleReponerSeleccionados = () => {
     const { cliente } = data || { cliente: {} };
-    ofertas.filter(o => selectedOfertaIds.has(o.id)).forEach(o => {
+    ofertas.filter(o => selectedOfertaIds.has(o.id) && o.estado === 'ACTIVA').forEach(o => {
       const c = o.cliente || cliente;
-      const camp = o.campania || {};
+      const camp = o.campania;
+      if (camp && camp.estado !== 'ACTIVA') return;
       agregarReposicion({
         ofertaId: o.id,
         tipoDocumento: c?.tipoDocumento?.nombre ?? '',
@@ -231,8 +234,8 @@ export default function ClientDetailPage() {
         agencia: c?.agencia?.nombre ?? '',
         canal: c?.canal?.nombre ?? '',
         tipoCliente: c?.tipoCliente?.nombre ?? '',
-        campaniaCodigo: camp.codigo ?? o.campaniaCodigo ?? '',
-        campaniaNombre: camp.nombre ?? o.campaniaNombre ?? '',
+        campaniaCodigo: camp.codigo ?? '',
+        campaniaNombre: camp.nombre ?? '',
         monto: o.monto,
         tasa: o.tasa ?? 0,
         fechaOferta: o.fechaOferta,
@@ -514,7 +517,7 @@ export default function ClientDetailPage() {
             <div className="flex items-center gap-3">
               {selectedOfertaIds.size > 0 && (
                 <Button variant="default" size="sm" className="gap-2" onClick={handleReponerSeleccionados}>
-                  Reponer seleccionados ({selectedOfertaIds.size})
+                  Reponer seleccionados ({ofertas.filter(o => selectedOfertaIds.has(o.id) && o.estado === 'ACTIVA').length})
                 </Button>
               )}
               <p className="text-sm text-muted-foreground">{ofertaTotalElements} ofertas</p>
@@ -533,7 +536,6 @@ export default function ClientDetailPage() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="ACTIVA">Activa</SelectItem>
                 <SelectItem value="ACEPTADA">Aceptada</SelectItem>
-                <SelectItem value="RECHAZADA">Rechazada</SelectItem>
                 <SelectItem value="VENCIDA">Vencida</SelectItem>
               </SelectContent>
             </Select>
@@ -569,7 +571,7 @@ export default function ClientDetailPage() {
                     <input
                       type="checkbox"
                       className="accent-blue-600 cursor-pointer"
-                      checked={ofertas.length > 0 && selectedOfertaIds.size === ofertas.length}
+                      checked={ofertas.length > 0 && selectedOfertaIds.size === ofertas.filter(o => o.estado === 'ACTIVA').length}
                       onChange={toggleSelectAllOfertas}
                     />
                   </th>
@@ -601,7 +603,7 @@ export default function ClientDetailPage() {
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">{oferta.fechaOferta}</td>
                       <td className="py-3 px-4 text-center">
-                        <ReponerButtonOfertaCliente oferta={oferta} cliente={cliente} />
+                        {oferta.estado === 'ACTIVA' && <ReponerButtonOfertaCliente oferta={oferta} cliente={cliente} />}
                       </td>
                     </tr>
                   ))
@@ -634,9 +636,19 @@ export default function ClientDetailPage() {
 function ReponerButtonOfertaCliente({ oferta, cliente }: { oferta: OfertaItem; cliente: any }) {
   const { agregar } = useReposicion();
 
-  const handleClick = () => {
+  const handleClick = async () => {
     const c = oferta.cliente || cliente;
-    const camp = oferta.campania || {};
+    let camp;
+    try {
+      camp = oferta.campaniaId ? await campaniasApi.obtener(oferta.campaniaId) : null;
+    } catch {
+      toast.error('Error al validar la campaña');
+      return;
+    }
+    if (!camp || camp.estado !== 'ACTIVA') {
+      toast.error('No se puede reponer ofertas de campañas inactivas');
+      return;
+    }
 
     agregar({
       ofertaId: oferta.id,
@@ -652,8 +664,8 @@ function ReponerButtonOfertaCliente({ oferta, cliente }: { oferta: OfertaItem; c
       agencia: c?.agencia?.nombre ?? '',
       canal: c?.canal?.nombre ?? '',
       tipoCliente: c?.tipoCliente?.nombre ?? '',
-      campaniaCodigo: camp.codigo ?? oferta.campaniaCodigo ?? '',
-      campaniaNombre: camp.nombre ?? oferta.campaniaNombre ?? '',
+      campaniaCodigo: camp.codigo ?? '',
+      campaniaNombre: camp.nombre ?? '',
       monto: oferta.monto,
       tasa: oferta.tasa ?? 0,
       fechaOferta: oferta.fechaOferta,

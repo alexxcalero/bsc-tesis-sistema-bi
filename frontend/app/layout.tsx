@@ -12,7 +12,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Sistema BI Bancario',
+  title: 'Sistema de Integración Bancario',
   description: 'Sistema de Business Intelligence Bancario',
   icons: {
     icon: [

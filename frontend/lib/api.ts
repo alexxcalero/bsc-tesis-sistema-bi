@@ -207,6 +207,7 @@ export const catalogosApi = {
   listarZonas: () => apiFetch<any>('/catalogos/zonas'),
   listarAgencias: () => apiFetch<any>('/catalogos/agencias'),
   listarPeriodos: () => apiFetch<any>('/catalogos/periodos'),
+  listarPeriodosConCampanias: () => apiFetch<any>('/catalogos/periodos/con-campanias'),
   listarTiposCarga: () => apiFetch<any>('/catalogos/tipos-carga'),
   listarEstadosCarga: () => apiFetch<any>('/catalogos/estados-carga'),
 };
